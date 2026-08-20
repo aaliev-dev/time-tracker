@@ -1,0 +1,37 @@
+import { contextBridge, ipcRenderer } from 'electron'
+import { IPC_CHANNELS } from '../main/types'
+
+// Type-safe API exposed to renderer via contextBridge
+const api = {
+  tracking: {
+    getCurrent: () => ipcRenderer.invoke(IPC_CHANNELS.TRACKING_GET_CURRENT),
+    pause: () => ipcRenderer.invoke(IPC_CHANNELS.TRACKING_PAUSE),
+    resume: () => ipcRenderer.invoke(IPC_CHANNELS.TRACKING_RESUME)
+  },
+  activities: {
+    getDay: (date: string) => ipcRenderer.invoke(IPC_CHANNELS.ACTIVITIES_GET_DAY, date),
+    getRange: (from: string, to: string) => ipcRenderer.invoke(IPC_CHANNELS.ACTIVITIES_GET_RANGE, from, to),
+    getSummary: (date: string) => ipcRenderer.invoke(IPC_CHANNELS.ACTIVITIES_GET_SUMMARY, date)
+  },
+  stats: {
+    getDaily: (days: number) => ipcRenderer.invoke(IPC_CHANNELS.STATS_GET_DAILY, days),
+    getTopApps: (from: string, to: string, limit?: number) => ipcRenderer.invoke(IPC_CHANNELS.STATS_GET_TOP_APPS, from, to, limit),
+    getHeatmap: (from: string, to: string) => ipcRenderer.invoke(IPC_CHANNELS.STATS_GET_HEATMAP, from, to)
+  },
+  categories: {
+    getAll: () => ipcRenderer.invoke(IPC_CHANNELS.CATEGORIES_GET_ALL),
+    upsert: (category: unknown) => ipcRenderer.invoke(IPC_CHANNELS.CATEGORIES_UPSERT, category),
+    delete: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.CATEGORIES_DELETE, id)
+  },
+  settings: {
+    get: (key: string) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET, key),
+    set: (key: string, value: unknown) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET, key, value)
+  },
+  export: {
+    csv: (from: string, to: string) => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_CSV, from, to)
+  }
+}
+
+export type TimeTrackerApi = typeof api
+
+contextBridge.exposeInMainWorld('api', api)
