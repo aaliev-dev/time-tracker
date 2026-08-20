@@ -7,6 +7,9 @@ import type { CurrentActivity } from './types'
 /** Имена процесса трекера (dev='Electron', prod='CarpeDiem') — чтобы не трекать себя */
 const SELF_APP_NAMES = new Set(['Electron', app.getName()])
 
+/** Ключевые слова private/incognito в заголовке окна → приватный режим */
+const PRIVATE_KEYWORDS = ['incognito', 'private browsing', 'private window', 'little arc']
+
 /**
  * TrackingEngine — опрашивает active-win каждые 1 сек и записывает события в БД.
  *
@@ -34,7 +37,9 @@ export class TrackingEngine extends EventEmitter {
   private currentUrl: string | null = null
   private isPaused: boolean = false
   private isSelfFocused: boolean = false
+  private isPrivateBrowsing: boolean = false
   private isAfk: boolean = false
+  private excludedApps: Set<string> = new Set()
 
   constructor(db: DatabaseManager) {
     super()
@@ -45,6 +50,7 @@ export class TrackingEngine extends EventEmitter {
 
   start(): void {
     if (this.intervalId) return
+    this.loadExcludedApps()
     console.log('[TrackingEngine] Starting polling every', this.pollIntervalMs, 'ms')
     this.intervalId = setInterval(() => this.poll(), this.pollIntervalMs)
   }
@@ -69,6 +75,18 @@ export class TrackingEngine extends EventEmitter {
     this.isPaused = false
     this.emitActivityChanged()
     console.log('[TrackingEngine] Resumed')
+  }
+
+  /** Reload excluded apps from settings (called when user updates list) */
+  loadExcludedApps(): void {
+    const raw = this.db.getSetting('excludedApps')
+    try {
+      const apps = raw ? JSON.parse(raw) as string[] : []
+      this.excludedApps = new Set(apps)
+      console.log('[TrackingEngine] Excluded apps:', [...this.excludedApps])
+    } catch {
+      this.excludedApps = new Set()
+    }
   }
 
   // ─── AFK handling ────────────────────────────────────────────
@@ -150,14 +168,40 @@ export class TrackingEngine extends EventEmitter {
       return
     }
 
+    // Check exclusion list — app user doesn't want tracked
+    if (this.excludedApps.has(appName)) {
+      if (this.currentEventId !== null) {
+        this.closeCurrentEvent()
+        this.emitActivityChanged()
+      }
+      return
+    }
+
     // Coming back from self-focus → force new event even if same app
     const wasSelfFocused = this.isSelfFocused
     this.isSelfFocused = false
 
+    // Private/incognito tab detection — skip tracking (privacy)
+    const isPrivate = isPrivateTab(appName, windowTitle)
+    if (isPrivate) {
+      if (!this.isPrivateBrowsing) {
+        this.closeCurrentEvent()
+        this.isPrivateBrowsing = true
+        this.emitActivityChanged()
+        console.log('[TrackingEngine] Private browsing — not tracking')
+      }
+      return
+    }
+
+    // Coming back from private → force new event
+    const wasPrivateBrowsing = this.isPrivateBrowsing
+    this.isPrivateBrowsing = false
+
     const changed =
       appName !== this.currentAppName ||
       windowTitle !== this.currentWindowTitle ||
-      wasSelfFocused
+      wasSelfFocused ||
+      wasPrivateBrowsing
 
     if (changed) {
       this.closeCurrentEvent()
@@ -211,6 +255,16 @@ export class TrackingEngine extends EventEmitter {
 
   getCurrentActivity(): CurrentActivity {
     // When self-focused, still show the last real activity
+    if (this.isPrivateBrowsing) {
+      return {
+        appName: 'Private browsing',
+        windowTitle: 'Incognito / Private tab',
+        url: null,
+        tsStart: this.currentTsStart ?? new Date().toISOString(),
+        isAfk: this.isAfk,
+        isPaused: this.isPaused
+      }
+    }
     return {
       appName: this.currentAppName || 'Idle',
       windowTitle: this.currentWindowTitle,
@@ -226,4 +280,17 @@ export class TrackingEngine extends EventEmitter {
   private emitActivityChanged(): void {
     this.emit('activity-changed', this.getCurrentActivity())
   }
+}
+
+/**
+ * Detects private/incognito browsing by window title keywords.
+ * Different browsers use different indicators:
+ * - Chrome: "Incognito" in title
+ * - Safari: "Private Browsing" in title
+ * - Firefox: "Private Browsing" in title
+ * - Arc: "Little Arc" (ephemeral/private windows)
+ */
+function isPrivateTab(_appName: string, windowTitle: string): boolean {
+  const titleLower = windowTitle.toLowerCase()
+  return PRIVATE_KEYWORDS.some((kw) => titleLower.includes(kw))
 }

@@ -101,6 +101,9 @@ export function registerIpcHandlers(db: DatabaseManager, tracker: TrackingEngine
       if (key === 'autostart') {
         app.setLoginItemSettings({ openAtLogin: value === true || value === 'true' })
       }
+      if (key === 'excludedApps') {
+        tracker.loadExcludedApps()
+      }
     }
   )
 
