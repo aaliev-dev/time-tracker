@@ -261,7 +261,7 @@ function AppRow({ item, maxTime }: { item: DetailedDaySummary; maxTime: number }
         {/* Bar */}
         <div className="relative h-8 flex-1 overflow-hidden rounded">
           <div
-            className="absolute inset-y-0 left-0 rounded bg-tt-accent/20"
+            className="absolute inset-y-0 left-0 rounded bg-tt-accent/35"
             style={{ width: `${barWidth}%` }}
           />
           <div className="relative flex h-full items-center px-3">
@@ -283,8 +283,8 @@ function AppRow({ item, maxTime }: { item: DetailedDaySummary; maxTime: number }
         <div className="border-t border-tt-border px-3 pb-2 pt-1">
           {item.windows.map((win, idx) => (
             <div key={idx} className="flex items-center gap-2 py-1.5 pl-6">
-              <span className="flex-1 truncate text-xs text-tt-muted">{win.windowTitle || '(empty)'}</span>
-              <span className="w-20 text-right text-xs text-tt-muted">{formatDuration(win.totalTime)}</span>
+              <span className="flex-1 truncate text-xs text-tt-text/70">{win.windowTitle || '(empty)'}</span>
+              <span className="w-20 text-right text-xs text-tt-text/70">{formatDuration(win.totalTime)}</span>
               <span className="w-12" />
             </div>
           ))}
