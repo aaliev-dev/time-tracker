@@ -108,7 +108,8 @@ export const IPC_CHANNELS = {
   TRACKING_GET_CURRENT: 'tracking:getCurrent',
   TRACKING_PAUSE: 'tracking:pause',
   TRACKING_RESUME: 'tracking:resume',
-  EXPORT_CSV: 'export:csv'
+  EXPORT_CSV: 'export:csv',
+  EXPORT_JSON: 'export:json'
 } as const
 
 export type IpcChannel = typeof IPC_CHANNELS[keyof typeof IPC_CHANNELS]
@@ -149,5 +150,6 @@ export interface TimeTrackerApi {
   }
   export: {
     csv: (from: string, to: string) => Promise<string>
+    json: (from: string, to: string) => Promise<string>
   }
 }

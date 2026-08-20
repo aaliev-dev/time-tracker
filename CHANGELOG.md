@@ -72,3 +72,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Exclusion list** — `excludedApps` setting (JSON array in settings table); TrackingEngine loads on start and skips excluded apps entirely
   - **Settings reload** — `tracker.loadExcludedApps()` called when setting is updated via IPC
   - **SettingsView** — exclusion list UI: add app name input, chip list with remove buttons
+- **Phase 9: JSON export & Categories management UI (US14)**
+  - **JSON export** — `EXPORT_JSON` IPC channel + handler: serializes events with metadata (exportedAt, dateRange, eventCount), saves to Downloads as `.json`
+  - **Preload** — `export.json()` method exposed
+  - **SettingsView Data section** — separate CSV and JSON export buttons
+  - **Categories management section** — lists all categories with color dot, rule count, productivity badge (green +/red -/gray 0)
+  - **Rules display** — shows all auto-categorization rules (field · matchType · "value" → category with color)
