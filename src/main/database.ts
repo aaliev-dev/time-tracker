@@ -2,7 +2,7 @@ import Database from 'better-sqlite3'
 import { readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
-import type { ActivityEvent, Category, DaySummary, DailyStat, DetailedDaySummary } from './types'
+import type { ActivityEvent, Category, CategoryRule, DaySummary, DailyStat, DetailedDaySummary } from './types'
 
 /**
  * Database — обёртка над better-sqlite3.
@@ -75,8 +75,16 @@ export class DatabaseManager {
   /**
    * Вставка нового события. Идемпотентна: если запись с тем же ts_start
    * уже существует — обновляет её (ON CONFLICT DO UPDATE).
+   * Автоматически категоризует через rules.
    */
   insertEvent(event: Omit<ActivityEvent, 'id'>): number {
+    // Auto-categorize if no explicit category
+    const categoryId = event.categoryId ?? this.categorizeEvent(
+      event.appName,
+      event.windowTitle,
+      event.appBundleId,
+      event.url ?? undefined
+    )
     const stmt = this.db.prepare(`
       INSERT INTO events (ts_start, ts_end, duration, app_name, app_bundle, window_title, url, category_id, is_afk, is_private)
       VALUES (@tsStart, @tsEnd, @duration, @appName, @appBundleId, @windowTitle, @url, @categoryId, @isAfk, @isPrivate)
@@ -89,7 +97,7 @@ export class DatabaseManager {
       appBundleId: event.appBundleId ?? null,
       windowTitle: event.windowTitle,
       url: event.url ?? null,
-      categoryId: event.categoryId ?? null,
+      categoryId: categoryId ?? null,
       isAfk: event.isAfk ? 1 : 0,
       isPrivate: event.isPrivate ? 1 : 0
     })
@@ -355,6 +363,107 @@ export class DatabaseManager {
     return row ? rowToCategory(row) : undefined
   }
 
+  // ─── Category Rules ──────────────────────────────────────────
+
+  /**
+   * Возвращает все правила авто-категоризации.
+   */
+  getCategoryRules(): CategoryRule[] {
+    const rows = this.db
+      .prepare('SELECT * FROM category_rules ORDER BY category_id, field')
+      .all() as RawRuleRow[]
+    return rows.map(rowToRule)
+  }
+
+  /**
+   * Создаёт или обновляет правило категоризации.
+   */
+  upsertRule(rule: Partial<CategoryRule>): CategoryRule {
+    if (rule.id) {
+      this.db
+        .prepare(`
+          UPDATE category_rules
+          SET category_id = COALESCE(@categoryId, category_id),
+              field = COALESCE(@field, field),
+              match_type = COALESCE(@matchType, match_type),
+              value = COALESCE(@value, value)
+          WHERE id = @id
+        `)
+        .run({
+          id: rule.id,
+          categoryId: rule.categoryId ?? null,
+          field: rule.field ?? null,
+          matchType: rule.matchType ?? null,
+          value: rule.value ?? null
+        })
+      return this.getRuleById(rule.id)!
+    }
+    const result = this.db
+      .prepare('INSERT INTO category_rules (category_id, field, match_type, value) VALUES (?, ?, ?, ?)')
+      .run(rule.categoryId!, rule.field!, rule.matchType!, rule.value!)
+    return this.getRuleById(Number(result.lastInsertRowid))!
+  }
+
+  deleteRule(id: number): void {
+    this.db.prepare('DELETE FROM category_rules WHERE id = ?').run(id)
+  }
+
+  private getRuleById(id: number): CategoryRule | undefined {
+    const row = this.db
+      .prepare('SELECT * FROM category_rules WHERE id = ?')
+      .get(id) as RawRuleRow | undefined
+    return row ? rowToRule(row) : undefined
+  }
+
+  /**
+   * Применяет правила к событию и возвращает category_id.
+   * Первое совпавшее правило выигрывает (priority by insertion order).
+   */
+  categorizeEvent(
+    appName: string,
+    windowTitle: string,
+    appBundleId?: string,
+    url?: string | null
+  ): number | null {
+    const rules = this.db
+      .prepare('SELECT * FROM category_rules ORDER BY id ASC')
+      .all() as RawRuleRow[]
+
+    for (const rule of rules) {
+      let fieldValue: string
+      switch (rule.field) {
+        case 'app_name': fieldValue = appName; break
+        case 'window_title': fieldValue = windowTitle; break
+        case 'app_bundle': fieldValue = appBundleId ?? ''; break
+        case 'url': fieldValue = url ?? ''; break
+        default: continue
+      }
+
+      if (this.matchRule(rule.match_type, rule.value, fieldValue)) {
+        return rule.category_id
+      }
+    }
+    return null
+  }
+
+  /**
+   * Проверяет совпадение значения по типу match.
+   */
+  private matchRule(matchType: string, pattern: string, value: string): boolean {
+    switch (matchType) {
+      case 'equals':
+        return value.toLowerCase() === pattern.toLowerCase()
+      case 'contains':
+        return value.toLowerCase().includes(pattern.toLowerCase())
+      case 'startsWith':
+        return value.toLowerCase().startsWith(pattern.toLowerCase())
+      case 'regex':
+        try { return new RegExp(pattern, 'i').test(value) } catch { return false }
+      default:
+        return false
+    }
+  }
+
   // ─── Settings ────────────────────────────────────────────────
 
   getSetting(key: string): string | null {
@@ -443,6 +552,24 @@ interface RawDetailedRow {
   totalTime: number
   categoryId: number | null
   categoryName: string | null
+}
+
+interface RawRuleRow {
+  id: number
+  category_id: number
+  field: string
+  match_type: string
+  value: string
+}
+
+function rowToRule(row: RawRuleRow): CategoryRule {
+  return {
+    id: row.id,
+    categoryId: row.category_id,
+    field: row.field as CategoryRule['field'],
+    matchType: row.match_type as CategoryRule['matchType'],
+    value: row.value
+  }
 }
 
 // ─── Timezone helpers ───────────────────────────────────────────
