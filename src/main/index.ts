@@ -12,6 +12,9 @@ let tracker: TrackingEngine | null = null
 let afkDetector: AFKDetector | null = null
 let isQuitting = false
 
+// Set app name before ready — affects macOS menu bar, active-win results, tray
+app.setName('CarpeDiem')
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -23,7 +26,7 @@ function createWindow(): void {
     titleBarStyle: 'hiddenInset',
     backgroundColor: '#1a1b26',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      preload: join(__dirname, '../preload/index.mjs'),
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false
@@ -61,11 +64,11 @@ function createTray(): void {
   const icon = nativeImage.createFromPath(iconPath)
   icon.setTemplateImage(true)
   tray = new Tray(icon)
-  tray.setToolTip('Time Tracker')
+  tray.setToolTip('CarpeDiem')
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: 'Open Time Tracker',
+      label: 'Open CarpeDiem',
       click: (): void => {
         mainWindow?.show()
         if (mainWindow?.isMinimized()) {

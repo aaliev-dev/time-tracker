@@ -28,5 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Tray icon** — 22×22 template PNG clock face, `setTemplateImage(true)` for macOS dark/light adaptation
   - **Window behavior** — close button hides to tray (not quit), `isQuitting` flag for real exit
   - **Autostart** — `app.setLoginItemSettings({ openAtLogin })` toggled from Settings, applied at startup
+- **Phase 3: Detailed tracking & app identity**
+  - **App name** — `app.setName('CarpeDiem')` + `electron-builder.yml` productName/appId
+  - **Self-tracking filter** — tracker skips its own window (`SELF_APP_NAMES` check), keeps last real activity as current
+  - **URL extraction** — `active-win` `url` field now stored in events (browser tab URLs on macOS)
+  - **Title parser** — `title-parser.ts`: per-app parsing (VS Code project, Figma file, browser domain extraction)
+  - **Detailed DaySummary** — `getDaySummaryDetailed()`: per-app + per-window-title breakdown with `DetailedDaySummary` type
+  - **Expandable timeline rows** — AppRow expands to show individual windows/tabs with per-title durations
+  - **Current activity header** — shows `windowTitle` alongside app name (truncated)
+  - **Drag region** — CSS drag region on header, `no-drag` on interactive elements
+  - **Preload fix** — `.mjs` extension (ESM `type: module`), ErrorBoundary + `hasApi()` guard
   - `formatLocalDate()` and `formatShort()` helpers in renderer
   - `d3-scale`, `d3-shape`, `d3-array` added for Recharts compatibility with Vite

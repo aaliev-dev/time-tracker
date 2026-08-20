@@ -1,7 +1,11 @@
 import activeWin from 'active-win'
 import { EventEmitter } from 'events'
+import { app } from 'electron'
 import type { DatabaseManager } from './database'
 import type { CurrentActivity } from './types'
+
+/** Имена процесса трекера (dev='Electron', prod='CarpeDiem') — чтобы не трекать себя */
+const SELF_APP_NAMES = new Set(['Electron', app.getName()])
 
 /**
  * TrackingEngine — опрашивает active-win каждые 1 сек и записывает события в БД.
@@ -27,7 +31,9 @@ export class TrackingEngine extends EventEmitter {
   private currentTsStart: string | null = null
   private currentAppName: string = ''
   private currentWindowTitle: string = ''
+  private currentUrl: string | null = null
   private isPaused: boolean = false
+  private isSelfFocused: boolean = false
   private isAfk: boolean = false
 
   constructor(db: DatabaseManager) {
@@ -130,32 +136,56 @@ export class TrackingEngine extends EventEmitter {
     const appName = win.owner.name
     const windowTitle = win.title
     const appBundleId = 'bundleId' in win.owner ? (win.owner as { bundleId?: string }).bundleId : undefined
+    const url = 'url' in win ? (win as { url?: string }).url ?? null : null
 
-    // Проверяем изменилась ли активность
+    // Skip self-tracking — don't record events for the tracker's own window
+    if (SELF_APP_NAMES.has(appName)) {
+      if (!this.isSelfFocused) {
+        // Close current real event to record accurate duration
+        this.closeCurrentEvent()
+        this.isSelfFocused = true
+        this.emitActivityChanged()
+        console.log('[TrackingEngine] Self-focused — keeping last activity as current')
+      }
+      return
+    }
+
+    // Coming back from self-focus → force new event even if same app
+    const wasSelfFocused = this.isSelfFocused
+    this.isSelfFocused = false
+
     const changed =
-      appName !== this.currentAppName || windowTitle !== this.currentWindowTitle
+      appName !== this.currentAppName ||
+      windowTitle !== this.currentWindowTitle ||
+      wasSelfFocused
 
     if (changed) {
       this.closeCurrentEvent()
-      this.startNewEvent(appName, windowTitle, appBundleId)
+      this.startNewEvent(appName, windowTitle, appBundleId, url)
       this.emitActivityChanged()
     }
   }
 
-  private startNewEvent(appName: string, windowTitle: string, appBundleId: string | undefined): void {
+  private startNewEvent(
+    appName: string,
+    windowTitle: string,
+    appBundleId: string | undefined,
+    url: string | null
+  ): void {
     const now = new Date().toISOString()
     this.currentTsStart = now
     this.currentAppName = appName
     this.currentWindowTitle = windowTitle
+    this.currentUrl = url
 
     this.currentEventId = this.db.insertEvent({
       tsStart: now,
-      tsEnd: now, // gs_end обновится при close
+      tsEnd: now, // ts_end обновится при close
       duration: 0,
       appName,
       appBundleId,
       windowTitle,
-      url: null,
+      url,
       categoryId: null,
       isAfk: false,
       isPrivate: false
@@ -180,9 +210,11 @@ export class TrackingEngine extends EventEmitter {
   // ─── Queries ────────────────────────────────────────────────
 
   getCurrentActivity(): CurrentActivity {
+    // When self-focused, still show the last real activity
     return {
       appName: this.currentAppName || 'Idle',
       windowTitle: this.currentWindowTitle,
+      url: this.currentUrl,
       tsStart: this.currentTsStart ?? new Date().toISOString(),
       isAfk: this.isAfk,
       isPaused: this.isPaused

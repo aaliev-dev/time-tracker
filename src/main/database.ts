@@ -2,7 +2,7 @@ import Database from 'better-sqlite3'
 import { readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
-import type { ActivityEvent, Category, DaySummary, DailyStat } from './types'
+import type { ActivityEvent, Category, DaySummary, DailyStat, DetailedDaySummary } from './types'
 
 /**
  * Database — обёртка над better-sqlite3.
@@ -244,6 +244,62 @@ export class DatabaseManager {
     }))
   }
 
+  /**
+   * Детальная сводка за день: appName с разбивкой по window_title.
+   * Возвращает приложения с подсписком окон/вкладок.
+   */
+  getDaySummaryDetailed(date: string): DetailedDaySummary[] {
+    const { start, end } = localDayBounds(date)
+    const rows = this.db
+      .prepare<
+        unknown[]
+      >(`
+      SELECT
+        e.app_name        AS appName,
+        e.window_title    AS windowTitle,
+        e.url             AS url,
+        SUM(e.duration)   AS totalTime,
+        e.category_id     AS categoryId,
+        c.name            AS categoryName
+      FROM events e
+      LEFT JOIN categories c ON e.category_id = c.id
+      WHERE e.ts_start >= ? AND e.ts_start <= ? AND e.is_afk = 0
+      GROUP BY e.app_name, e.window_title, e.url
+      ORDER BY e.app_name, totalTime DESC
+    `)
+      .all(start, end) as RawDetailedRow[]
+
+    // Group by app name
+    const appMap = new Map<string, DetailedDaySummary>()
+    for (const row of rows) {
+      let app = appMap.get(row.appName)
+      if (!app) {
+        app = {
+          appName: row.appName,
+          totalTime: 0,
+          percentage: 0,
+          categoryId: row.categoryId ?? undefined,
+          categoryName: row.categoryName ?? undefined,
+          windows: []
+        }
+        appMap.set(row.appName, app)
+      }
+      app.totalTime += row.totalTime
+      app.windows.push({
+        windowTitle: row.windowTitle,
+        url: row.url,
+        totalTime: row.totalTime
+      })
+    }
+
+    const result = Array.from(appMap.values())
+    const total = result.reduce((sum, a) => sum + a.totalTime, 0)
+    result.forEach((a) => (a.percentage = total > 0 ? (a.totalTime / total) * 100 : 0))
+    result.sort((a, b) => b.totalTime - a.totalTime)
+
+    return result
+  }
+
   // ─── Categories ──────────────────────────────────────────────
 
   getAllCategories(): Category[] {
@@ -375,6 +431,15 @@ function rowToCategory(row: RawCategoryRow): Category {
 
 interface RawSummaryRow {
   appName: string
+  totalTime: number
+  categoryId: number | null
+  categoryName: string | null
+}
+
+interface RawDetailedRow {
+  appName: string
+  windowTitle: string
+  url: string | null
   totalTime: number
   categoryId: number | null
   categoryName: string | null
