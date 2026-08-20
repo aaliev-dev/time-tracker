@@ -10,6 +10,7 @@ let tray: Tray | null = null
 let db: DatabaseManager | null = null
 let tracker: TrackingEngine | null = null
 let afkDetector: AFKDetector | null = null
+let isQuitting = false
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -33,6 +34,14 @@ function createWindow(): void {
     mainWindow?.show()
   })
 
+  // Prevent window from closing — hide to tray instead
+  mainWindow.on('close', (e) => {
+    if (!isQuitting) {
+      e.preventDefault()
+      mainWindow?.hide()
+    }
+  })
+
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
@@ -47,8 +56,10 @@ function createWindow(): void {
 }
 
 function createTray(): void {
-  // Simple 16x16 template icon for menu bar
-  const icon = nativeImage.createEmpty()
+  // Load template icon (clock face) for menu bar
+  const iconPath = join(__dirname, '../../resources/icons/trayTemplate.png')
+  const icon = nativeImage.createFromPath(iconPath)
+  icon.setTemplateImage(true)
   tray = new Tray(icon)
   tray.setToolTip('Time Tracker')
 
@@ -127,6 +138,12 @@ app.whenReady().then(() => {
     mainWindow?.webContents.send('tracking:activityChanged', tracker!.getCurrentActivity())
   })
 
+  // Apply autostart setting from DB
+  const autostart = db.getSetting('autostart')
+  if (autostart === 'true') {
+    app.setLoginItemSettings({ openAtLogin: true })
+  }
+
   createTray()
   createWindow()
 
@@ -140,9 +157,11 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   // On macOS, keep app running in tray when window is closed
   // User can click tray icon to reopen
+  // Do NOT call app.quit() — tracking continues in background
 })
 
 app.on('before-quit', () => {
+  isQuitting = true
   // Закрываем текущее событие перед выходом
   tracker?.stop()
   afkDetector?.stop()
