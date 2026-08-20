@@ -78,3 +78,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **SettingsView Data section** — separate CSV and JSON export buttons
   - **Categories management section** — lists all categories with color dot, rule count, productivity badge (green +/red -/gray 0)
   - **Rules display** — shows all auto-categorization rules (field · matchType · "value" → category with color)
+- **Phase 10: Menu bar quick summary (US5)**
+  - **Dynamic tray menu** — `updateTrayMenu()` rebuilds context menu with: today's total active time, current activity (app + window title), top 3 apps with durations
+  - **Tray tooltip** — shows "CarpeDiem — 5h 32m today" on hover
+  - **Auto-refresh** — menu rebuilt on activity change (via `tracker.on('activity-changed')`) and every 30 seconds (duration grows without activity switch)
+  - **Pause/Resume state** — disabled/enabled dynamically based on tracking state
