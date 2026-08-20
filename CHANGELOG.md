@@ -88,3 +88,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Global uncaughtException handler** — catches EIO/ERR_STREAM_DESTROYED silently, logs other exceptions without crashing
   - **Dual-window guard** — `createWindow()` now checks `mainWindow?.isDestroyed()` before creating, preventing duplicate windows on `activate` event or double-invocation
   - **Window reference cleanup** — `mainWindow` set to `null` on `closed` event for proper lifecycle management
+- **Phase 12: Production packaging fixes**
+  - **Migrations bundling** — `extraResources` in `electron-builder.yml` copies SQL migration files to `Resources/migrations/` in packaged .app (was missing — app crashed on startup with "Migrations directory not found")
+  - **Tray icon path** — `createTray()` now resolves icon path via `app.isPackaged` for both dev (`__dirname`) and production (`process.resourcesPath`) environments
+  - **Single-instance lock** — `app.requestSingleInstanceLock()` prevents launching a second app instance; second launch focuses existing window instead

@@ -77,7 +77,9 @@ function createWindow(): void {
 
 function createTray(): void {
   // Load template icon (clock face) for menu bar
-  const iconPath = join(__dirname, '../../resources/icons/trayTemplate.png')
+  const iconPath = app.isPackaged
+    ? join(process.resourcesPath ?? '', 'icons/trayTemplate.png')
+    : join(__dirname, '../../resources/icons/trayTemplate.png')
   const icon = nativeImage.createFromPath(iconPath)
   icon.setTemplateImage(true)
   tray = new Tray(icon)
@@ -185,6 +187,21 @@ function updateTrayMenu(): void {
 }
 
 // ─── App lifecycle ─────────────────────────────────────────────
+
+// Single-instance lock — не даём запустить второй экземпляр приложения
+const gotTheLock = app.requestSingleInstanceLock()
+if (!gotTheLock) {
+  app.quit()
+}
+
+app.on('second-instance', () => {
+  // Кто-то пытается запустить второй экземпляр — фокусируем существующее окно
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  }
+})
 
 app.whenReady().then(() => {
   // Initialize database
