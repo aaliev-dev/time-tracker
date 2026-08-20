@@ -7,11 +7,11 @@ export default {
   theme: {
     extend: {
       colors: {
-        'tt-bg': '#1a1b26',
-        'tt-surface': '#24283b',
+        'tt-bg': '#16161e',
+        'tt-surface': '#1f2335',
         'tt-border': '#414868',
         'tt-text': '#c0caf5',
-        'tt-muted': '#565f89',
+        'tt-muted': '#9aa5ce',
         'tt-accent': '#7aa2f7',
         'tt-green': '#9ece6a',
         'tt-yellow': '#e0af68',
