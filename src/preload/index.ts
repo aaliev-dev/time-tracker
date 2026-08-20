@@ -33,6 +33,11 @@ const api = {
     upsert: (category: unknown) => ipcRenderer.invoke(IPC_CHANNELS.CATEGORIES_UPSERT, category),
     delete: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.CATEGORIES_DELETE, id)
   },
+  rules: {
+    getAll: () => ipcRenderer.invoke(IPC_CHANNELS.RULES_GET_ALL),
+    upsert: (rule: unknown) => ipcRenderer.invoke(IPC_CHANNELS.RULES_UPSERT, rule),
+    delete: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.RULES_DELETE, id)
+  },
   settings: {
     get: (key: string) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET, key),
     set: (key: string, value: unknown) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET, key, value)

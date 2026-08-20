@@ -4,7 +4,7 @@ import { join } from 'path'
 import { homedir } from 'os'
 import type { DatabaseManager } from './database'
 import type { TrackingEngine } from './tracking-engine'
-import { IPC_CHANNELS, type Category } from './types'
+import { IPC_CHANNELS, type Category, type CategoryRule } from './types'
 
 /**
  * Регистрирует все IPC handlers.
@@ -63,6 +63,20 @@ export function registerIpcHandlers(db: DatabaseManager, tracker: TrackingEngine
 
   ipcMain.handle(IPC_CHANNELS.CATEGORIES_DELETE, (_event, id: number) => {
     db.deleteCategory(id)
+  })
+
+  // ─── Category Rules ──────────────────────────────────────
+
+  ipcMain.handle(IPC_CHANNELS.RULES_GET_ALL, () => {
+    return db.getCategoryRules()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.RULES_UPSERT, (_event, rule: Partial<CategoryRule>) => {
+    return db.upsertRule(rule)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.RULES_DELETE, (_event, id: number) => {
+    db.deleteRule(id)
   })
 
   // ─── Settings ─────────────────────────────────────────────

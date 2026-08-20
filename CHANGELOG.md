@@ -49,3 +49,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Contrast fix** — `tt-muted` #565f89 → #9aa5ce (WCAG 2.4:1 → ~5:1), bar fill opacity /20 → /35
   - **Sidebar padding** — `pt-12` for macOS traffic lights, drag-region on sidebar
   - **Removed** — redundant "Currently tracking" card (header already shows current activity)
+- **Phase 5: Auto-categorization engine**
+  - **Categorization** — `categorizeEvent()` matches app name/window title/URL/bundle against rules (first match wins)
+  - **Rule matcher** — `matchRule()` supports `equals`, `contains`, `startsWith`, `regex` (case-insensitive, safe regex try/catch)
+  - **Auto-categorize on insert** — `insertEvent()` now calls `categorizeEvent()` if no explicit category
+  - **Rule CRUD** — `getCategoryRules()`, `upsertRule()`, `deleteRule()`, `getRuleById()` DB methods
+  - **IPC channels** — `RULES_GET_ALL`, `RULES_UPSERT`, `RULES_DELETE` with full preload bridge
+  - **Default rules migration** — `002_default_rules.sql`: Development (Code, Xcode, Terminal, Cursor, Figma), Communication (Slack, Discord, Mail, Telegram, Zoom, Teams), Browsing (Chrome, Safari, Firefox, Arc, Edge + URL rules), Entertainment (Spotify, YouTube, Netflix, Twitch), System (Finder, System Settings, Docker)

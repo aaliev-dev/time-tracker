@@ -82,6 +82,9 @@ export const IPC_CHANNELS = {
   CATEGORIES_GET_ALL: 'categories:getAll',
   CATEGORIES_UPSERT: 'categories:upsert',
   CATEGORIES_DELETE: 'categories:delete',
+  RULES_GET_ALL: 'rules:getAll',
+  RULES_UPSERT: 'rules:upsert',
+  RULES_DELETE: 'rules:delete',
   SETTINGS_GET: 'settings:get',
   SETTINGS_SET: 'settings:set',
   TRACKING_GET_CURRENT: 'tracking:getCurrent',
@@ -114,6 +117,11 @@ export interface TimeTrackerApi {
   categories: {
     getAll: () => Promise<Category[]>
     upsert: (category: Partial<Category>) => Promise<Category>
+    delete: (id: number) => Promise<void>
+  }
+  rules: {
+    getAll: () => Promise<CategoryRule[]>
+    upsert: (rule: Partial<CategoryRule>) => Promise<CategoryRule>
     delete: (id: number) => Promise<void>
   }
   settings: {
