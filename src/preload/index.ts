@@ -26,6 +26,7 @@ const api = {
   stats: {
     getDaily: (days: number) => ipcRenderer.invoke(IPC_CHANNELS.STATS_GET_DAILY, days),
     getTopApps: (from: string, to: string, limit?: number) => ipcRenderer.invoke(IPC_CHANNELS.STATS_GET_TOP_APPS, from, to, limit),
+    getProductivity: (days: number) => ipcRenderer.invoke(IPC_CHANNELS.STATS_GET_PRODUCTIVITY, days),
     getHeatmap: (from: string, to: string) => ipcRenderer.invoke(IPC_CHANNELS.STATS_GET_HEATMAP, from, to)
   },
   categories: {

@@ -8,9 +8,13 @@ import {
   ResponsiveContainer,
   PieChart,
   Pie,
-  Cell
+  Cell,
+  LineChart,
+  Line,
+  ReferenceLine,
+  CartesianGrid
 } from 'recharts'
-import type { DailyStat, DaySummary } from '../../../main/types'
+import type { DailyStat, DaySummary, ProductivityStat } from '../../../main/types'
 import { formatDuration, formatShort } from '../lib/format'
 
 const PIE_COLORS = [
@@ -29,21 +33,24 @@ const PIE_COLORS = [
 export default function StatsView(): JSX.Element {
   const [dailyStats, setDailyStats] = useState<DailyStat[]>([])
   const [topApps, setTopApps] = useState<DaySummary[]>([])
+  const [productivity, setProductivity] = useState<ProductivityStat[]>([])
   const [range, setRange] = useState(7)
   const [loading, setLoading] = useState(true)
 
   const loadData = useCallback(async () => {
     setLoading(true)
-    const [daily, top] = await Promise.all([
+    const [daily, top, prod] = await Promise.all([
       window.api.stats.getDaily(range),
       window.api.stats.getTopApps(
         getFromDate(range),
         getTodayDate(),
         10
-      )
+      ),
+      window.api.stats.getProductivity(range)
     ])
     setDailyStats(daily as DailyStat[])
     setTopApps(top as DaySummary[])
+    setProductivity(prod as ProductivityStat[])
     setLoading(false)
   }, [range])
 
@@ -99,6 +106,9 @@ export default function StatsView(): JSX.Element {
         </div>
       ) : (
         <>
+          {/* Productivity score */}
+          <ProductivitySection productivity={productivity} />
+
           {/* Daily active time bar chart */}
           <div className="rounded-lg border border-tt-border bg-tt-surface p-4">
             <h2 className="mb-4 text-sm font-medium text-tt-muted">Daily active time</h2>
@@ -224,6 +234,148 @@ function StatCard({ label, value }: { label: string; value: string }): JSX.Eleme
     <div className="rounded-lg border border-tt-border bg-tt-surface p-4">
       <div className="text-xs text-tt-muted">{label}</div>
       <div className="mt-1 text-xl font-semibold">{value}</div>
+    </div>
+  )
+}
+
+/** Цвет по score: 0 → красный, 50 → жёлтый, 100 → зелёный */
+function scoreColor(score: number): string {
+  if (score >= 75) return '#9ece6a'
+  if (score >= 50) return '#e0af68'
+  if (score >= 25) return '#ff9e64'
+  return '#f7768e'
+}
+
+function scoreLabel(score: number): string {
+  if (score >= 80) return 'Excellent'
+  if (score >= 60) return 'Good'
+  if (score >= 40) return 'Neutral'
+  if (score >= 20) return 'Below average'
+  return 'Distracting'
+}
+
+function ProductivitySection({
+  productivity
+}: {
+  productivity: ProductivityStat[]
+}): JSX.Element {
+  if (productivity.length === 0) {
+    return (
+      <div className="rounded-lg border border-tt-border bg-tt-surface p-4 text-center text-tt-muted">
+        No productivity data yet.
+      </div>
+    )
+  }
+
+  const avgScore = Math.round(
+    productivity.reduce((sum, d) => sum + d.score, 0) / productivity.length
+  )
+  const todayScore = productivity[productivity.length - 1]?.score ?? 0
+  const today = productivity[productivity.length - 1]
+  const totalProductive = productivity.reduce((s, d) => s + d.productiveTime, 0)
+  const totalDistracting = productivity.reduce((s, d) => s + d.distractingTime, 0)
+
+  const chartData = productivity.map((d) => ({
+    date: d.date.slice(5),
+    score: d.score
+  }))
+
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      {/* Score gauge */}
+      <div className="rounded-lg border border-tt-border bg-tt-surface p-4">
+        <h2 className="mb-3 text-sm font-medium text-tt-muted">Today's score</h2>
+        <div className="flex items-center gap-4">
+          <div
+            className="flex h-20 w-20 items-center justify-center rounded-full text-2xl font-bold"
+            style={{ color: scoreColor(todayScore) }}
+          >
+            {todayScore}
+          </div>
+          <div>
+            <div className="text-lg font-semibold" style={{ color: scoreColor(todayScore) }}>
+              {scoreLabel(todayScore)}
+            </div>
+            {today && (
+              <div className="mt-1 space-y-0.5 text-xs text-tt-muted">
+                <div>
+                  <span style={{ color: '#9ece6a' }}>●</span> Productive: {' '}
+                  {formatDuration(today.productiveTime)}
+                </div>
+                <div>
+                  <span style={{ color: '#f7768e' }}>●</span> Distracting: {' '}
+                  {formatDuration(today.distractingTime)}
+                </div>
+                <div>
+                  <span style={{ color: '#7aa2f7' }}>●</span> Neutral: {' '}
+                  {formatDuration(today.neutralTime)}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Average + summary */}
+      <div className="rounded-lg border border-tt-border bg-tt-surface p-4">
+        <h2 className="mb-3 text-sm font-medium text-tt-muted">
+          {productivity.length}-day average
+        </h2>
+        <div className="flex items-center gap-4">
+          <div
+            className="flex h-20 w-20 items-center justify-center rounded-full text-2xl font-bold"
+            style={{ color: scoreColor(avgScore) }}
+          >
+            {avgScore}
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="h-3 w-3 rounded-full" style={{ backgroundColor: '#9ece6a' }} />
+              <span className="flex-1 text-tt-muted">Productive time</span>
+              <span className="font-medium">{formatDuration(totalProductive)}</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="h-3 w-3 rounded-full" style={{ backgroundColor: '#f7768e' }} />
+              <span className="flex-1 text-tt-muted">Distracting time</span>
+              <span className="font-medium">{formatDuration(totalDistracting)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Trend line chart */}
+      <div className="rounded-lg border border-tt-border bg-tt-surface p-4 lg:col-span-1">
+        <h2 className="mb-3 text-sm font-medium text-tt-muted">Productivity trend</h2>
+        <ResponsiveContainer width="100%" height={120}>
+          <LineChart data={chartData} margin={{ top: 5, right: 5, bottom: 0, left: -25 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#2a2e44" />
+            <XAxis dataKey="date" stroke="#9aa5ce" fontSize={10} />
+            <YAxis
+              domain={[0, 100]}
+              stroke="#9aa5ce"
+              fontSize={10}
+              ticks={[0, 50, 100]}
+            />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: '#1a1b26',
+                border: '1px solid #414868',
+                borderRadius: '8px'
+              }}
+              labelStyle={{ color: '#c0caf5' }}
+              formatter={(v: number) => [`${v}/100`, 'Score']}
+            />
+            <ReferenceLine y={50} stroke="#565f89" strokeDasharray="4 4" />
+            <Line
+              type="monotone"
+              dataKey="score"
+              stroke="#7aa2f7"
+              strokeWidth={2}
+              dot={{ fill: '#7aa2f7', r: 3 }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   )
 }
