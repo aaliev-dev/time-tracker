@@ -56,3 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Rule CRUD** — `getCategoryRules()`, `upsertRule()`, `deleteRule()`, `getRuleById()` DB methods
   - **IPC channels** — `RULES_GET_ALL`, `RULES_UPSERT`, `RULES_DELETE` with full preload bridge
   - **Default rules migration** — `002_default_rules.sql`: Development (Code, Xcode, Terminal, Cursor, Figma), Communication (Slack, Discord, Mail, Telegram, Zoom, Teams), Browsing (Chrome, Safari, Firefox, Arc, Edge + URL rules), Entertainment (Spotify, YouTube, Netflix, Twitch), System (Finder, System Settings, Docker)
+- **Phase 6: Productivity score (US8)**
+  - **`ProductivityStat` type** — `{ date, score (0-100), totalActive, productiveTime, distractingTime, neutralTime }`
+  - **`getProductivityStats()`** — DB method: time-weighted average of category productivity (-2..+2 → 0-100), per-day breakdown by productive/distracting/neutral
+  - **IPC** — `STATS_GET_PRODUCTIVITY` channel + handler + preload binding
+  - **StatsView UI** — productivity score section: today's score gauge (color-coded), N-day average with productive/distracting breakdown, line chart trend with 50-point reference line
