@@ -83,3 +83,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Tray tooltip** — shows "CarpeDiem — 5h 32m today" on hover
   - **Auto-refresh** — menu rebuilt on activity change (via `tracker.on('activity-changed')`) and every 30 seconds (duration grows without activity switch)
   - **Pause/Resume state** — disabled/enabled dynamically based on tracking state
+- **Phase 11: Runtime stability fixes**
+  - **Safe logger** — `safe-log.ts` module wraps `console.log/warn/error` in try/catch, preventing EIO crash when terminal stdout pipe is broken (VS Code killing terminal, terminal closing)
+  - **Global uncaughtException handler** — catches EIO/ERR_STREAM_DESTROYED silently, logs other exceptions without crashing
+  - **Dual-window guard** — `createWindow()` now checks `mainWindow?.isDestroyed()` before creating, preventing duplicate windows on `activate` event or double-invocation
+  - **Window reference cleanup** — `mainWindow` set to `null` on `closed` event for proper lifecycle management

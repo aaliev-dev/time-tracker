@@ -5,6 +5,7 @@ import { TrackingEngine } from './tracking-engine'
 import { AFKDetector } from './afk-detector'
 import { registerIpcHandlers } from './ipc-handlers'
 import { formatLocalDate } from './database'
+import { installGlobalErrorHandlers, log } from './safe-log'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -16,7 +17,17 @@ let isQuitting = false
 // Set app name before ready — affects macOS menu bar, active-win results, tray
 app.setName('CarpeDiem')
 
+// Предотвращаем EIO crash, когда терминал закрылся
+installGlobalErrorHandlers()
+
 function createWindow(): void {
+  // Guard: не создаём второе окно, если первое живо
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show()
+    mainWindow.focus()
+    return
+  }
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -44,6 +55,11 @@ function createWindow(): void {
       e.preventDefault()
       mainWindow?.hide()
     }
+  })
+
+  // Очистка ссылки при реальном уничтожении окна
+  mainWindow.on('closed', () => {
+    mainWindow = null
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -173,7 +189,7 @@ function updateTrayMenu(): void {
 app.whenReady().then(() => {
   // Initialize database
   db = new DatabaseManager()
-  console.log('[Main] Database initialized')
+  log.info('[Main] Database initialized')
 
   // Initialize tracking engine
   tracker = new TrackingEngine(db)
@@ -211,7 +227,11 @@ app.whenReady().then(() => {
   setInterval(() => updateTrayMenu(), 30_000)
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    // macOS: clicking dock icon — показываем существующее окно или создаём
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show()
+      mainWindow.focus()
+    } else {
       createWindow()
     }
   })
@@ -229,5 +249,5 @@ app.on('before-quit', () => {
   tracker?.stop()
   afkDetector?.stop()
   db?.close()
-  console.log('[Main] Cleaned up')
+  log.info('[Main] Cleaned up')
 })
