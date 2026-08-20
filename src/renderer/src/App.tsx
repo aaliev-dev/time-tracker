@@ -92,24 +92,24 @@ function AppInner(): JSX.Element {
 
   return (
     <div className="flex h-screen bg-tt-bg text-tt-text">
-      {/* Sidebar */}
-      <nav className="flex w-16 flex-col items-center gap-4 border-r border-tt-border bg-tt-surface py-6">
+      {/* Sidebar — extra top padding for macOS traffic lights */}
+      <nav className="drag-region flex w-16 flex-col items-center gap-4 border-r border-tt-border bg-tt-surface pt-12 pb-6">
         <button
-          className={`rounded-lg p-3 transition-colors ${view === 'timeline' ? 'bg-tt-accent/20 text-tt-accent' : 'text-tt-muted hover:text-tt-text'}`}
+          className={`no-drag rounded-lg p-3 transition-colors ${view === 'timeline' ? 'bg-tt-accent/20 text-tt-accent' : 'text-tt-muted hover:text-tt-text'}`}
           onClick={() => setView('timeline')}
           title="Timeline"
         >
           <Clock size={22} />
         </button>
         <button
-          className={`rounded-lg p-3 transition-colors ${view === 'stats' ? 'bg-tt-accent/20 text-tt-accent' : 'text-tt-muted hover:text-tt-text'}`}
+          className={`no-drag rounded-lg p-3 transition-colors ${view === 'stats' ? 'bg-tt-accent/20 text-tt-accent' : 'text-tt-muted hover:text-tt-text'}`}
           onClick={() => setView('stats')}
           title="Statistics"
         >
           <BarChart3 size={22} />
         </button>
         <button
-          className={`rounded-lg p-3 transition-colors ${view === 'settings' ? 'bg-tt-accent/20 text-tt-accent' : 'text-tt-muted hover:text-tt-text'}`}
+          className={`no-drag rounded-lg p-3 transition-colors ${view === 'settings' ? 'bg-tt-accent/20 text-tt-accent' : 'text-tt-muted hover:text-tt-text'}`}
           onClick={() => setView('settings')}
           title="Settings"
         >
@@ -153,7 +153,6 @@ function AppInner(): JSX.Element {
               summary={summary}
               selectedDate={selectedDate}
               onDateChange={setSelectedDate}
-              currentActivity={currentActivity}
             />
           )}
           {view === 'stats' && <StatsView />}
@@ -169,13 +168,11 @@ function AppInner(): JSX.Element {
 function DaySummaryView({
   summary,
   selectedDate,
-  onDateChange,
-  currentActivity
+  onDateChange
 }: {
   summary: DetailedDaySummary[]
   selectedDate: string
   onDateChange: (date: string) => void
-  currentActivity: CurrentActivity | null
 }): JSX.Element {
   const totalActive = summary.reduce((sum, s) => sum + s.totalTime, 0)
 
@@ -217,22 +214,6 @@ function DaySummaryView({
         <div className="text-sm text-tt-muted">Total active time</div>
         <div className="mt-1 text-3xl font-semibold text-tt-text">{formatDuration(totalActive)}</div>
       </div>
-
-      {/* Current activity (live) */}
-      {isToday && currentActivity && !currentActivity.isAfk && !currentActivity.isPaused && (
-        <div className="rounded-lg border border-tt-green/30 bg-tt-green/5 p-4">
-          <div className="flex items-center gap-2 text-sm text-tt-green">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-tt-green" />
-            Currently tracking
-          </div>
-          <div className="mt-2">
-            <span className="text-xl font-medium">{currentActivity.appName}</span>
-            {currentActivity.windowTitle && (
-              <div className="mt-0.5 truncate text-sm text-tt-muted">{currentActivity.windowTitle}</div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* App list */}
       <div>
