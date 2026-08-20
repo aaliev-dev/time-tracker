@@ -1,9 +1,15 @@
 import { app, BrowserWindow, shell, Tray, Menu, nativeImage } from 'electron'
 import { join } from 'path'
-import { IPC_CHANNELS } from './types'
+import { DatabaseManager } from './database'
+import { TrackingEngine } from './tracking-engine'
+import { AFKDetector } from './afk-detector'
+import { registerIpcHandlers } from './ipc-handlers'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
+let db: DatabaseManager | null = null
+let tracker: TrackingEngine | null = null
+let afkDetector: AFKDetector | null = null
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -60,7 +66,13 @@ function createTray(): void {
     {
       label: 'Pause Tracking',
       click: (): void => {
-        // TODO: implement pause
+        tracker?.pause()
+      }
+    },
+    {
+      label: 'Resume Tracking',
+      click: (): void => {
+        tracker?.resume()
       }
     },
     { type: 'separator' },
@@ -86,24 +98,37 @@ function createTray(): void {
   })
 }
 
-// IPC handlers — stubs for now, will be implemented in Phase 1
-function registerIpcHandlers(): void {
-  const { ipcMain } = require('electron')
-  ipcMain.handle(IPC_CHANNELS.TRACKING_GET_CURRENT, () => {
-    return null // TODO: return current activity
-  })
-  ipcMain.handle(IPC_CHANNELS.ACTIVITIES_GET_DAY, () => {
-    return [] // TODO: return day's activities
-  })
-  ipcMain.handle(IPC_CHANNELS.ACTIVITIES_GET_SUMMARY, () => {
-    return [] // TODO: return summary
-  })
-}
+// ─── App lifecycle ─────────────────────────────────────────────
 
 app.whenReady().then(() => {
+  // Initialize database
+  db = new DatabaseManager()
+  console.log('[Main] Database initialized')
+
+  // Initialize tracking engine
+  tracker = new TrackingEngine(db)
+  tracker.start()
+
+  // Initialize AFK detector
+  afkDetector = new AFKDetector()
+  afkDetector.on('afk-start', () => {
+    tracker?.onAfkStart()
+  })
+  afkDetector.on('afk-end', (duration: number) => {
+    tracker?.onAfkEnd(duration)
+  })
+  afkDetector.start()
+
+  // IPC — real handlers
+  registerIpcHandlers(db, tracker)
+
+  // Push activity changes to renderer
+  tracker.on('activity-changed', () => {
+    mainWindow?.webContents.send('tracking:activityChanged', tracker!.getCurrentActivity())
+  })
+
   createTray()
   createWindow()
-  registerIpcHandlers()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -115,4 +140,12 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   // On macOS, keep app running in tray when window is closed
   // User can click tray icon to reopen
+})
+
+app.on('before-quit', () => {
+  // Закрываем текущее событие перед выходом
+  tracker?.stop()
+  afkDetector?.stop()
+  db?.close()
+  console.log('[Main] Cleaned up')
 })

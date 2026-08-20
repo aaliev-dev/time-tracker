@@ -6,7 +6,16 @@ const api = {
   tracking: {
     getCurrent: () => ipcRenderer.invoke(IPC_CHANNELS.TRACKING_GET_CURRENT),
     pause: () => ipcRenderer.invoke(IPC_CHANNELS.TRACKING_PAUSE),
-    resume: () => ipcRenderer.invoke(IPC_CHANNELS.TRACKING_RESUME)
+    resume: () => ipcRenderer.invoke(IPC_CHANNELS.TRACKING_RESUME),
+    onActivityChanged: (callback: (activity: unknown) => void) => {
+      const listener = (_event: unknown, activity: unknown): void => {
+        callback(activity)
+      }
+      ipcRenderer.on('tracking:activityChanged', listener)
+      return () => {
+        ipcRenderer.removeListener('tracking:activityChanged', listener)
+      }
+    }
   },
   activities: {
     getDay: (date: string) => ipcRenderer.invoke(IPC_CHANNELS.ACTIVITIES_GET_DAY, date),
