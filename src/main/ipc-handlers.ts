@@ -173,8 +173,7 @@ export function registerIpcHandlers(db: DatabaseManager, tracker: TrackingEngine
   ipcMain.handle(IPC_CHANNELS.STATS_GET_HEATMAP, (_event, from: string, to: string) => {
     validateDate(from)
     validateDate(to)
-    // TODO: implement heatmap aggregation
-    return []
+    return db.getHeatmap(from, to)
   })
 }
 

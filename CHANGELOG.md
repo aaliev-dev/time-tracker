@@ -61,3 +61,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **`getProductivityStats()`** — DB method: time-weighted average of category productivity (-2..+2 → 0-100), per-day breakdown by productive/distracting/neutral
   - **IPC** — `STATS_GET_PRODUCTIVITY` channel + handler + preload binding
   - **StatsView UI** — productivity score section: today's score gauge (color-coded), N-day average with productive/distracting breakdown, line chart trend with 50-point reference line
+- **Phase 7: Activity heatmap (US11)**
+  - **`HeatmapCell` type** — `{ dayOfWeek, hour, seconds }` (7×24 = 168 cells)
+  - **`getHeatmap()`** — DB method: fetches events for period, aggregates by local day-of-week × hour using `Date.getDay()` / `getHours()`, returns full 7×24 grid
+  - **IPC** — replaced TODO with real `getHeatmap()` call, return type `HeatmapCell[]`
+  - **StatsView** — `HeatmapSection` component: 7×24 grid with intensity color (transparent → blue), hover tooltip (day hour → duration), legend

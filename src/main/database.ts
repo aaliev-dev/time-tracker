@@ -2,7 +2,7 @@ import Database from 'better-sqlite3'
 import { readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
-import type { ActivityEvent, Category, CategoryRule, DaySummary, DailyStat, ProductivityStat, DetailedDaySummary } from './types'
+import type { ActivityEvent, Category, CategoryRule, DaySummary, DailyStat, ProductivityStat, HeatmapCell, DetailedDaySummary } from './types'
 
 /**
  * Database — обёртка над better-sqlite3.
@@ -309,6 +309,49 @@ export class DatabaseManager {
     }
 
     return result
+  }
+
+  /**
+   * Heatmap активности: 7 дней недели × 24 часа.
+   * Каждый event разбивается по часу начала (приближение).
+   * Возвращает массив ячеек { dayOfWeek(0-6), hour(0-23), seconds }.
+   */
+  getHeatmap(fromDate: string, toDate: string): HeatmapCell[] {
+    const { start } = localDayBounds(fromDate)
+    const { end: endBound } = localDayBounds(toDate)
+
+    const rows = this.db
+      .prepare(`
+        SELECT ts_start, duration
+        FROM events
+        WHERE ts_start >= ? AND ts_start <= ? AND is_afk = 0
+      `)
+      .all(start, endBound) as { ts_start: string; duration: number }[]
+
+    const grid: Record<string, number> = {}
+
+    for (const row of rows) {
+      const d = new Date(row.ts_start)
+      const dayOfWeek = d.getDay()
+      const hour = d.getHours()
+      const key = `${dayOfWeek}-${hour}`
+      grid[key] = (grid[key] ?? 0) + row.duration
+    }
+
+    // Build full 7×24 grid (return all cells, including zero)
+    const cells: HeatmapCell[] = []
+    for (let day = 0; day < 7; day++) {
+      for (let hour = 0; hour < 24; hour++) {
+        const key = `${day}-${hour}`
+        cells.push({
+          dayOfWeek: day,
+          hour,
+          seconds: grid[key] ?? 0
+        })
+      }
+    }
+
+    return cells
   }
 
   /**

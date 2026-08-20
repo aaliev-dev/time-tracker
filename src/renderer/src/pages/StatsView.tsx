@@ -14,7 +14,7 @@ import {
   ReferenceLine,
   CartesianGrid
 } from 'recharts'
-import type { DailyStat, DaySummary, ProductivityStat } from '../../../main/types'
+import type { DailyStat, DaySummary, ProductivityStat, HeatmapCell } from '../../../main/types'
 import { formatDuration, formatShort } from '../lib/format'
 
 const PIE_COLORS = [
@@ -34,23 +34,26 @@ export default function StatsView(): JSX.Element {
   const [dailyStats, setDailyStats] = useState<DailyStat[]>([])
   const [topApps, setTopApps] = useState<DaySummary[]>([])
   const [productivity, setProductivity] = useState<ProductivityStat[]>([])
+  const [heatmap, setHeatmap] = useState<HeatmapCell[]>([])
   const [range, setRange] = useState(7)
   const [loading, setLoading] = useState(true)
 
   const loadData = useCallback(async () => {
     setLoading(true)
-    const [daily, top, prod] = await Promise.all([
+    const [daily, top, prod, heat] = await Promise.all([
       window.api.stats.getDaily(range),
       window.api.stats.getTopApps(
         getFromDate(range),
         getTodayDate(),
         10
       ),
-      window.api.stats.getProductivity(range)
+      window.api.stats.getProductivity(range),
+      window.api.stats.getHeatmap(getFromDate(range), getTodayDate())
     ])
     setDailyStats(daily as DailyStat[])
     setTopApps(top as DaySummary[])
     setProductivity(prod as ProductivityStat[])
+    setHeatmap(heat as HeatmapCell[])
     setLoading(false)
   }, [range])
 
@@ -223,6 +226,9 @@ export default function StatsView(): JSX.Element {
               }
             />
           </div>
+
+          {/* Activity heatmap */}
+          <HeatmapSection heatmap={heatmap} />
         </>
       )}
     </div>
@@ -234,6 +240,102 @@ function StatCard({ label, value }: { label: string; value: string }): JSX.Eleme
     <div className="rounded-lg border border-tt-border bg-tt-surface p-4">
       <div className="text-xs text-tt-muted">{label}</div>
       <div className="mt-1 text-xl font-semibold">{value}</div>
+    </div>
+  )
+}
+
+// ─── Heatmap ───────────────────────────────────────────────────
+
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+/** Heatmap color: 0 → transparent, max → blue */
+function heatColor(seconds: number, max: number): string {
+  if (seconds === 0 || max === 0) return '#1f2335'
+  const intensity = seconds / max
+  // Interpolate from dark blue to bright blue
+  const alpha = 0.15 + intensity * 0.85
+  return `rgba(122, 162, 247, ${alpha})`
+}
+
+function formatHM(seconds: number): string {
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m`
+}
+
+function HeatmapSection({ heatmap }: { heatmap: HeatmapCell[] }): JSX.Element {
+  if (heatmap.length === 0) {
+    return <></>
+  }
+
+  const max = Math.max(...heatmap.map((c) => c.seconds), 0)
+
+  // Build 7×24 lookup: grid[day][hour] = seconds
+  const grid: number[][] = Array.from({ length: 7 }, () =>
+    Array.from({ length: 24 }, () => 0)
+  )
+  for (const cell of heatmap) {
+    grid[cell.dayOfWeek][cell.hour] = cell.seconds
+  }
+
+  return (
+    <div className="rounded-lg border border-tt-border bg-tt-surface p-4">
+      <h2 className="mb-3 text-sm font-medium text-tt-muted">
+        Activity heatmap (day × hour)
+      </h2>
+      <div className="overflow-x-auto">
+        <div className="min-w-[600px]">
+          {/* Hour labels */}
+          <div className="mb-1 flex pl-10">
+            {Array.from({ length: 24 }, (_, h) => (
+              <div
+                key={h}
+                className="flex-1 text-center text-[10px] text-tt-muted"
+                style={{ minWidth: '22px' }}
+              >
+                {h % 3 === 0 ? `${h}` : ''}
+              </div>
+            ))}
+          </div>
+          {/* Grid rows */}
+          {grid.map((dayRow, day) => (
+            <div key={day} className="mb-0.5 flex items-center">
+              <div className="w-10 text-right pr-2 text-xs text-tt-muted">
+                {DAYS[day]}
+              </div>
+              {dayRow.map((seconds, hour) => (
+                <div
+                  key={hour}
+                  className="group relative m-0.5 flex-1 rounded-sm transition-transform hover:scale-125"
+                  style={{
+                    backgroundColor: heatColor(seconds, max),
+                    minWidth: '22px',
+                    height: '20px'
+                  }}
+                >
+                  {/* Tooltip */}
+                  <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded bg-tt-bg px-2 py-1 text-xs text-tt-text shadow-lg group-hover:block">
+                    {DAYS[day]} {hour}:00 — {formatHM(seconds)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+          {/* Legend */}
+          <div className="mt-3 flex items-center gap-2 pl-10 text-xs text-tt-muted">
+            <span>Less</span>
+            {[0, 0.25, 0.5, 0.75, 1].map((i) => (
+              <div
+                key={i}
+                className="h-3 w-5 rounded-sm"
+                style={{ backgroundColor: heatColor(i * max, max) }}
+              />
+            ))}
+            <span>More</span>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

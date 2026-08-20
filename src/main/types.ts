@@ -80,6 +80,13 @@ export interface ProductivityStat {
   neutralTime: number // секунды в категориях с productivity = 0
 }
 
+/** Heatmap cell — day of week × hour */
+export interface HeatmapCell {
+  dayOfWeek: number // 0=Sunday, 6=Saturday
+  hour: number // 0-23
+  seconds: number
+}
+
 // IPC channel names — single source of truth
 export const IPC_CHANNELS = {
   ACTIVITIES_GET_DAY: 'activities:getDay',
@@ -124,7 +131,7 @@ export interface TimeTrackerApi {
     getDaily: (days: number) => Promise<DailyStat[]>
     getTopApps: (from: string, to: string, limit?: number) => Promise<DaySummary[]>
     getProductivity: (days: number) => Promise<ProductivityStat[]>
-    getHeatmap: (from: string, to: string) => Promise<unknown[]>
+    getHeatmap: (from: string, to: string) => Promise<HeatmapCell[]>
   }
   categories: {
     getAll: () => Promise<Category[]>
