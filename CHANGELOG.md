@@ -66,3 +66,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **`getHeatmap()`** — DB method: fetches events for period, aggregates by local day-of-week × hour using `Date.getDay()` / `getHours()`, returns full 7×24 grid
   - **IPC** — replaced TODO with real `getHeatmap()` call, return type `HeatmapCell[]`
   - **StatsView** — `HeatmapSection` component: 7×24 grid with intensity color (transparent → blue), hover tooltip (day hour → duration), legend
+- **Phase 8: Privacy — private tab filtering & exclusion list (US13, US15)**
+  - **Private tab detection** — `isPrivateTab()` checks window title for Chrome "Incognito", Safari/Firefox "Private Browsing", Arc "Little Arc"; when detected, tracker closes current event and doesn't record (like self-tracking)
+  - **Current activity** — shows "Private browsing" indicator when in private mode (no URL stored)
+  - **Exclusion list** — `excludedApps` setting (JSON array in settings table); TrackingEngine loads on start and skips excluded apps entirely
+  - **Settings reload** — `tracker.loadExcludedApps()` called when setting is updated via IPC
+  - **SettingsView** — exclusion list UI: add app name input, chip list with remove buttons

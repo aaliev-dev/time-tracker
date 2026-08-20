@@ -1,19 +1,23 @@
 import { useState, useEffect } from 'react'
-import { Power, Clock, Download } from 'lucide-react'
+import { Power, Clock, Download, ShieldOff, X } from 'lucide-react'
 
 export default function SettingsView(): JSX.Element {
   const [autostart, setAutostart] = useState(false)
   const [idleThreshold, setIdleThreshold] = useState(180)
+  const [excludedApps, setExcludedApps] = useState<string[]>([])
+  const [newApp, setNewApp] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     // Load current settings
     Promise.all([
       window.api.settings.get('autostart'),
-      window.api.settings.get('idleThreshold')
-    ]).then(([auto, idle]) => {
+      window.api.settings.get('idleThreshold'),
+      window.api.settings.get('excludedApps')
+    ]).then(([auto, idle, excluded]) => {
       setAutostart(auto === true || auto === 'true')
       setIdleThreshold(typeof idle === 'number' ? idle : parseInt(String(idle ?? '180')) || 180)
+      setExcludedApps(Array.isArray(excluded) ? excluded : [])
       setLoading(false)
     })
   }, [])
@@ -27,6 +31,22 @@ export default function SettingsView(): JSX.Element {
   const saveIdleThreshold = async (value: number): Promise<void> => {
     setIdleThreshold(value)
     await window.api.settings.set('idleThreshold', value)
+  }
+
+  const saveExcludedApps = async (apps: string[]): Promise<void> => {
+    setExcludedApps(apps)
+    await window.api.settings.set('excludedApps', apps)
+  }
+
+  const addExcludedApp = async (): Promise<void> => {
+    const name = newApp.trim()
+    if (!name || excludedApps.includes(name)) return
+    await saveExcludedApps([...excludedApps, name])
+    setNewApp('')
+  }
+
+  const removeExcludedApp = async (name: string): Promise<void> => {
+    await saveExcludedApps(excludedApps.filter((a) => a !== name))
   }
 
   const exportCsv = async (): Promise<void> => {
@@ -119,6 +139,60 @@ export default function SettingsView(): JSX.Element {
                 Export
               </button>
             </div>
+          </div>
+
+          {/* Exclusion list */}
+          <div className="space-y-4 rounded-lg border border-tt-border bg-tt-surface p-5">
+            <h3 className="flex items-center gap-2 text-sm font-medium">
+              <ShieldOff size={16} className="text-tt-accent" />
+              Exclusion list
+            </h3>
+            <div className="text-xs text-tt-muted">
+              Apps in this list will not be tracked at all. Enter the exact app name as it appears in the activity list.
+            </div>
+
+            {/* Add app input */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newApp}
+                onChange={(e) => setNewApp(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') addExcludedApp()
+                }}
+                placeholder="App name (e.g., Slack, Maps)"
+                className="flex-1 rounded-lg border border-tt-border bg-tt-bg px-3 py-2 text-sm text-tt-text placeholder-tt-muted focus:border-tt-accent focus:outline-none"
+              />
+              <button
+                onClick={addExcludedApp}
+                disabled={!newApp.trim()}
+                className="rounded-lg border border-tt-border px-4 py-2 text-sm hover:bg-tt-bg disabled:opacity-40"
+              >
+                Add
+              </button>
+            </div>
+
+            {/* List of excluded apps */}
+            {excludedApps.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {excludedApps.map((app) => (
+                  <div
+                    key={app}
+                    className="flex items-center gap-2 rounded-lg border border-tt-border bg-tt-bg px-3 py-1.5 text-sm"
+                  >
+                    <span>{app}</span>
+                    <button
+                      onClick={() => removeExcludedApp(app)}
+                      className="text-tt-muted hover:text-tt-text"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-tt-muted">No excluded apps.</div>
+            )}
           </div>
 
           {/* About */}
