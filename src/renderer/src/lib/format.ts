@@ -40,3 +40,19 @@ export function formatShort(seconds: number): string {
   const mins = Math.round((seconds % 3600) / 60)
   return mins > 0 ? `${hours}h${mins}m` : `${hours}h`
 }
+
+/**
+ * Format an ISO timestamp to "HH:MM" (local time).
+ */
+export function formatTime(iso: string): string {
+  const d = new Date(iso)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+/**
+ * Format an ISO timestamp to "HH:MM:SS" (local time).
+ */
+export function formatTimeSec(iso: string): string {
+  const d = new Date(iso)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
+}

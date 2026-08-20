@@ -40,3 +40,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Preload fix** — `.mjs` extension (ESM `type: module`), ErrorBoundary + `hasApi()` guard
   - `formatLocalDate()` and `formatShort()` helpers in renderer
   - `d3-scale`, `d3-shape`, `d3-array` added for Recharts compatibility with Vite
+- **Phase 4: Daily Log view & UI polish**
+  - **LogView** — new sidebar tab with chronological event log + visual timeline bar
+  - **Visual timeline** — horizontal 00:00→24:00 bar, each event = colored block proportional to duration, hover for details
+  - **Event list** — chronological list with start/end times, app name, window title, duration; AFK events dimmed
+  - **Color per app** — deterministic hash → curated palette for visual distinction
+  - **formatTime()** / **formatTimeSec()** helpers for HH:MM display
+  - **Contrast fix** — `tt-muted` #565f89 → #9aa5ce (WCAG 2.4:1 → ~5:1), bar fill opacity /20 → /35
+  - **Sidebar padding** — `pt-12` for macOS traffic lights, drag-region on sidebar
+  - **Removed** — redundant "Currently tracking" card (header already shows current activity)
