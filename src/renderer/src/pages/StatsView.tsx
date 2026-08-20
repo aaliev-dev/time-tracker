@@ -117,9 +117,9 @@ export default function StatsView(): JSX.Element {
             <h2 className="mb-4 text-sm font-medium text-tt-muted">Daily active time</h2>
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={chartData}>
-                <XAxis dataKey="date" stroke="#565f89" fontSize={12} />
+                <XAxis dataKey="date" stroke="#9aa5ce" fontSize={12} />
                 <YAxis
-                  stroke="#565f89"
+                  stroke="#9aa5ce"
                   fontSize={12}
                   tickFormatter={(v: number) => formatShort(v)}
                 />
@@ -450,7 +450,7 @@ function ProductivitySection({
         <h2 className="mb-3 text-sm font-medium text-tt-muted">Productivity trend</h2>
         <ResponsiveContainer width="100%" height={120}>
           <LineChart data={chartData} margin={{ top: 5, right: 5, bottom: 0, left: -25 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2a2e44" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
             <XAxis dataKey="date" stroke="#9aa5ce" fontSize={10} />
             <YAxis
               domain={[0, 100]}
@@ -467,7 +467,7 @@ function ProductivitySection({
               labelStyle={{ color: '#c0caf5' }}
               formatter={(v: number) => [`${v}/100`, 'Score']}
             />
-            <ReferenceLine y={50} stroke="#565f89" strokeDasharray="4 4" />
+            <ReferenceLine y={50} stroke="#737aa2" strokeDasharray="4 4" />
             <Line
               type="monotone"
               dataKey="score"

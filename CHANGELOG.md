@@ -92,3 +92,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Migrations bundling** — `extraResources` in `electron-builder.yml` copies SQL migration files to `Resources/migrations/` in packaged .app (was missing — app crashed on startup with "Migrations directory not found")
   - **Tray icon path** — `createTray()` now resolves icon path via `app.isPackaged` for both dev (`__dirname`) and production (`process.resourcesPath`) environments
   - **Single-instance lock** — `app.requestSingleInstanceLock()` prevents launching a second app instance; second launch focuses existing window instead
+- **Phase 13: UI contrast & color consistency**
+  - **Native dark mode** — added `color-scheme: dark` to globals.css so native controls (range slider, checkboxes, scrollbars) render in dark appearance instead of light
+  - **Recharts axis labels** — fixed contrast ratio from 2.3:1 to 6.1:1 by changing stroke color from `#565f89` to `#9aa5ce` (tt-muted) on daily bar chart
+  - **Recharts grid lines** — made CartesianGrid more visible: `#2a2e44` → `#334155`
+  - **Recharts reference line** — productivity trend 50-point reference line: `#565f89` → `#737aa2` for better visibility
+  - **"Today" badge** — normalized opacity across Timeline and Log views (was /20 in one, /30 in other → both /25), added font-medium for readability

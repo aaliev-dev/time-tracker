@@ -82,7 +82,7 @@ export default function LogView({ selectedDate, onDateChange }: {
         </button>
         <div className="flex items-center gap-3">
           <span className="text-lg font-medium">{selectedDate}</span>
-          {isToday && <span className="rounded bg-tt-accent/30 px-2 py-0.5 text-xs text-tt-accent">Today</span>}
+          {isToday && <span className="rounded bg-tt-accent/25 px-2 py-0.5 text-xs font-medium text-tt-accent">Today</span>}
         </div>
         <button
           onClick={() => shiftDate(1)}
