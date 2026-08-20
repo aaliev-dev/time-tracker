@@ -79,6 +79,7 @@ export interface TimeTrackerApi {
     getCurrent: () => Promise<CurrentActivity | null>
     pause: () => Promise<void>
     resume: () => Promise<void>
+    onActivityChanged: (callback: (activity: CurrentActivity) => void) => () => void
   }
   activities: {
     getDay: (date: string) => Promise<ActivityEvent[]>
