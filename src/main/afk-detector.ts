@@ -1,5 +1,6 @@
 import { powerMonitor } from 'electron'
 import { EventEmitter } from 'events'
+import { log } from './safe-log'
 
 /**
  * AFKDetector — определяет когда пользователь "away from keyboard".
@@ -34,7 +35,7 @@ export class AFKDetector extends EventEmitter {
 
   start(): void {
     if (this.intervalId) return
-    console.log('[AFKDetector] Starting, threshold:', this.idleThresholdSec, 'sec')
+    log.info('[AFKDetector] Starting, threshold:', this.idleThresholdSec, 'sec')
     this.intervalId = setInterval(() => this.checkIdle(), this.pollIntervalMs)
   }
 
@@ -43,29 +44,29 @@ export class AFKDetector extends EventEmitter {
       clearInterval(this.intervalId)
       this.intervalId = null
     }
-    console.log('[AFKDetector] Stopped')
+    log.info('[AFKDetector] Stopped')
   }
 
   // ─── Power monitor events (sleep/wake/lock) ─────────────────
 
   private setupPowerMonitor(): void {
     powerMonitor.on('suspend', () => {
-      console.log('[AFKDetector] System suspended')
+      log.info('[AFKDetector] System suspended')
       this.startAfk()
     })
 
     powerMonitor.on('resume', () => {
-      console.log('[AFKDetector] System resumed')
+      log.info('[AFKDetector] System resumed')
       this.endAfk()
     })
 
     powerMonitor.on('lock-screen', () => {
-      console.log('[AFKDetector] Screen locked')
+      log.info('[AFKDetector] Screen locked')
       this.startAfk()
     })
 
     powerMonitor.on('unlock-screen', () => {
-      console.log('[AFKDetector] Screen unlocked')
+      log.info('[AFKDetector] Screen unlocked')
       this.endAfk()
     })
   }

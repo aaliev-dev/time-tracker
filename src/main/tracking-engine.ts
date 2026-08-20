@@ -3,6 +3,7 @@ import { EventEmitter } from 'events'
 import { app } from 'electron'
 import type { DatabaseManager } from './database'
 import type { CurrentActivity } from './types'
+import { log } from './safe-log'
 
 /** Имена процесса трекера (dev='Electron', prod='CarpeDiem') — чтобы не трекать себя */
 const SELF_APP_NAMES = new Set(['Electron', app.getName()])
@@ -51,7 +52,7 @@ export class TrackingEngine extends EventEmitter {
   start(): void {
     if (this.intervalId) return
     this.loadExcludedApps()
-    console.log('[TrackingEngine] Starting polling every', this.pollIntervalMs, 'ms')
+    log.info('[TrackingEngine] Starting polling every', this.pollIntervalMs, 'ms')
     this.intervalId = setInterval(() => this.poll(), this.pollIntervalMs)
   }
 
@@ -61,20 +62,20 @@ export class TrackingEngine extends EventEmitter {
       this.intervalId = null
     }
     this.closeCurrentEvent()
-    console.log('[TrackingEngine] Stopped')
+    log.info('[TrackingEngine] Stopped')
   }
 
   pause(): void {
     this.isPaused = true
     this.closeCurrentEvent()
     this.emitActivityChanged()
-    console.log('[TrackingEngine] Paused')
+    log.info('[TrackingEngine] Paused')
   }
 
   resume(): void {
     this.isPaused = false
     this.emitActivityChanged()
-    console.log('[TrackingEngine] Resumed')
+    log.info('[TrackingEngine] Resumed')
   }
 
   /** Reload excluded apps from settings (called when user updates list) */
@@ -83,7 +84,7 @@ export class TrackingEngine extends EventEmitter {
     try {
       const apps = raw ? JSON.parse(raw) as string[] : []
       this.excludedApps = new Set(apps)
-      console.log('[TrackingEngine] Excluded apps:', [...this.excludedApps])
+      log.info('[TrackingEngine] Excluded apps:', [...this.excludedApps])
     } catch {
       this.excludedApps = new Set()
     }
@@ -100,7 +101,7 @@ export class TrackingEngine extends EventEmitter {
     this.isAfk = true
     this.closeCurrentEvent()
     this.emitActivityChanged()
-    console.log('[TrackingEngine] AFK started')
+    log.info('[TrackingEngine] AFK started')
   }
 
   /**
@@ -130,7 +131,7 @@ export class TrackingEngine extends EventEmitter {
     })
 
     this.emitActivityChanged()
-    console.log(`[TrackingEngine] AFK ended (was away ${afkDuration}s)`)
+    log.info(`[TrackingEngine] AFK ended (was away ${afkDuration}s)`)
   }
 
   // ─── Core polling ────────────────────────────────────────────
@@ -142,7 +143,7 @@ export class TrackingEngine extends EventEmitter {
     try {
       win = await activeWin()
     } catch (err) {
-      console.error('[TrackingEngine] activeWin error:', err)
+      log.error('[TrackingEngine] activeWin error:', err)
       return
     }
 
@@ -163,7 +164,7 @@ export class TrackingEngine extends EventEmitter {
         this.closeCurrentEvent()
         this.isSelfFocused = true
         this.emitActivityChanged()
-        console.log('[TrackingEngine] Self-focused — keeping last activity as current')
+        log.info('[TrackingEngine] Self-focused — keeping last activity as current')
       }
       return
     }
@@ -188,7 +189,7 @@ export class TrackingEngine extends EventEmitter {
         this.closeCurrentEvent()
         this.isPrivateBrowsing = true
         this.emitActivityChanged()
-        console.log('[TrackingEngine] Private browsing — not tracking')
+        log.info('[TrackingEngine] Private browsing — not tracking')
       }
       return
     }
