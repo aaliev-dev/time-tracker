@@ -20,3 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Renderer UI — Day Summary view with live activity indicator, app list with bar charts
   - DB migration `001_initial.sql` — events, categories, category_rules, settings tables
   - `formatDuration` utility for human-readable time display
+- **Phase 2: Working prototype — Stats, Settings, Tray**
+  - **Timezone fix** — `localDayBounds()` helper, all DB queries now use local day boundaries
+  - **Stats implementations** — `getDailyStats()` (N-day trend with per-category breakdown), `getTopApps()` (period top apps)
+  - **StatsView** — Recharts stacked bar chart (daily active time by category), pie chart (top apps), summary cards
+  - **SettingsView** — autostart toggle (`app.setLoginItemSettings`), idle threshold slider, CSV export button
+  - **Tray icon** — 22×22 template PNG clock face, `setTemplateImage(true)` for macOS dark/light adaptation
+  - **Window behavior** — close button hides to tray (not quit), `isQuitting` flag for real exit
+  - **Autostart** — `app.setLoginItemSettings({ openAtLogin })` toggled from Settings, applied at startup
+  - `formatLocalDate()` and `formatShort()` helpers in renderer
+  - `d3-scale`, `d3-shape`, `d3-array` added for Recharts compatibility with Vite

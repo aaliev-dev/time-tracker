@@ -2,7 +2,7 @@ import Database from 'better-sqlite3'
 import { readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
-import type { ActivityEvent, Category, DaySummary } from './types'
+import type { ActivityEvent, Category, DaySummary, DailyStat } from './types'
 
 /**
  * Database — обёртка над better-sqlite3.
@@ -107,28 +107,29 @@ export class DatabaseManager {
   }
 
   /**
-   * Возвращает все события за конкретный день (от 00:00 до 23:59:59).
+   * Возвращает все события за конкретный день (локальный timezone).
    */
   getEventsByDay(date: string): ActivityEvent[] {
-    const dayStart = `${date}T00:00:00.000Z`
-    const dayEnd = `${date}T23:59:59.999Z`
+    const { start, end } = localDayBounds(date)
     const rows = this.db
       .prepare<
         unknown[]
       >(`SELECT * FROM events WHERE ts_start >= ? AND ts_start <= ? ORDER BY ts_start ASC`)
-      .all(dayStart, dayEnd) as RawEventRow[]
+      .all(start, end) as RawEventRow[]
     return rows.map(rowToEvent)
   }
 
   /**
-   * Возвращает события за диапазон дат.
+   * Возвращает события за диапазон дат (локальный timezone).
    */
-  getEventsByRange(from: string, to: string): ActivityEvent[] {
+  getEventsByRange(fromDate: string, toDate: string): ActivityEvent[] {
+    const { start } = localDayBounds(fromDate)
+    const { end } = localDayBounds(toDate)
     const rows = this.db
       .prepare<
         unknown[]
       >(`SELECT * FROM events WHERE ts_start >= ? AND ts_start <= ? ORDER BY ts_start ASC`)
-      .all(from, to) as RawEventRow[]
+      .all(start, end) as RawEventRow[]
     return rows.map(rowToEvent)
   }
 
@@ -136,8 +137,7 @@ export class DatabaseManager {
    * Возвращает сводку за день: appName → totalTime, с процентами.
    */
   getDaySummary(date: string): DaySummary[] {
-    const dayStart = `${date}T00:00:00.000Z`
-    const dayEnd = `${date}T23:59:59.999Z`
+    const { start, end } = localDayBounds(date)
     const rows = this.db
       .prepare<
         unknown[]
@@ -153,10 +153,89 @@ export class DatabaseManager {
       GROUP BY e.app_name
       ORDER BY totalTime DESC
     `)
-      .all(dayStart, dayEnd) as RawSummaryRow[]
+      .all(start, end) as RawSummaryRow[]
 
     const total = rows.reduce((sum, r) => sum + r.totalTime, 0)
     return rows.map((r) => ({
+      appName: r.appName,
+      totalTime: r.totalTime,
+      percentage: total > 0 ? (r.totalTime / total) * 100 : 0,
+      categoryId: r.categoryId ?? undefined,
+      categoryName: r.categoryName ?? undefined
+    }))
+  }
+
+  // ─── Stats ───────────────────────────────────────────────────
+
+  /**
+   * Возвращает статистику за N последних дней.
+   */
+  getDailyStats(days: number): DailyStat[] {
+    const result: DailyStat[] = []
+    const today = new Date()
+
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(today)
+      d.setDate(d.getDate() - i)
+      const dateStr = formatLocalDate(d)
+      const { start, end } = localDayBounds(dateStr)
+
+      const row = this.db
+        .prepare(`
+          SELECT COALESCE(SUM(duration), 0) AS totalActive
+          FROM events
+          WHERE ts_start >= ? AND ts_start <= ? AND is_afk = 0
+        `)
+        .get(start, end) as { totalActive: number }
+
+      // Per-category query
+      const catRows = this.db
+        .prepare(`
+          SELECT
+            COALESCE(c.name, 'Uncategorized')  AS category,
+            SUM(e.duration)                      AS seconds
+          FROM events e
+          LEFT JOIN categories c ON e.category_id = c.id
+          WHERE e.ts_start >= ? AND e.ts_start <= ? AND e.is_afk = 0
+          GROUP BY COALESCE(c.name, 'Uncategorized')
+          ORDER BY seconds DESC
+        `)
+        .all(start, end) as { category: string; seconds: number }[]
+
+      result.push({
+        date: dateStr,
+        totalActive: row.totalActive ?? 0,
+        byCategory: catRows.map(r => ({ category: r.category, seconds: r.seconds }))
+      })
+    }
+
+    return result
+  }
+
+  /**
+   * Возвращает топ приложений за период.
+   */
+  getTopApps(fromDate: string, toDate: string, limit: number = 10): DaySummary[] {
+    const { start } = localDayBounds(fromDate)
+    const { end } = localDayBounds(toDate)
+    const rows = this.db
+      .prepare(`
+      SELECT
+        e.app_name        AS appName,
+        SUM(e.duration)   AS totalTime,
+        e.category_id     AS categoryId,
+        c.name            AS categoryName
+      FROM events e
+      LEFT JOIN categories c ON e.category_id = c.id
+      WHERE e.ts_start >= ? AND e.ts_start <= ? AND e.is_afk = 0
+      GROUP BY e.app_name
+      ORDER BY totalTime DESC
+      LIMIT ?
+    `)
+      .all(start, end, limit) as RawSummaryRow[]
+
+    const total = rows.reduce((sum, r) => sum + r.totalTime, 0)
+    return rows.map(r => ({
       appName: r.appName,
       totalTime: r.totalTime,
       percentage: total > 0 ? (r.totalTime / total) * 100 : 0,
@@ -299,4 +378,32 @@ interface RawSummaryRow {
   totalTime: number
   categoryId: number | null
   categoryName: string | null
+}
+
+// ─── Timezone helpers ───────────────────────────────────────────
+
+/**
+ * Возвращает ISO-строки для начала и конца локального дня.
+ * date — в формате "YYYY-MM-DD" (локальная дата).
+ *
+ * Проблема: new Date().toISOString() отдаёт UTC.
+ * Если пользователь в UTC+3, 22:00 локально = 19:00 UTC.
+ * Если искать "2026-08-20T00:00:00.000Z" — это UTC-полночь,
+ * а не локальная. Решение: конструируем Date из локальных компонентов.
+ */
+export function localDayBounds(date: string): { start: string; end: string } {
+  const [year, month, day] = date.split('-').map(Number)
+  const start = new Date(year, month - 1, day, 0, 0, 0, 0)
+  const end = new Date(year, month - 1, day, 23, 59, 59, 999)
+  return { start: start.toISOString(), end: end.toISOString() }
+}
+
+/**
+ * Форматирует Date в локальную дату "YYYY-MM-DD" (без UTC-сдвига).
+ */
+export function formatLocalDate(d: Date): string {
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }

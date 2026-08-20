@@ -1,4 +1,4 @@
-import { ipcMain, dialog, BrowserWindow } from 'electron'
+import { ipcMain, dialog, BrowserWindow, app } from 'electron'
 import { writeFileSync } from 'fs'
 import { join } from 'path'
 import { homedir } from 'os'
@@ -78,6 +78,10 @@ export function registerIpcHandlers(db: DatabaseManager, tracker: TrackingEngine
     (_event, key: string, value: unknown) => {
       const serialized = typeof value === 'string' ? value : JSON.stringify(value)
       db.setSetting(key, serialized)
+      // Handle special settings
+      if (key === 'autostart') {
+        app.setLoginItemSettings({ openAtLogin: value === true || value === 'true' })
+      }
     }
   )
 
@@ -126,23 +130,26 @@ export function registerIpcHandlers(db: DatabaseManager, tracker: TrackingEngine
     return filePath
   })
 
-  // ─── Stats (stubs — Phase 5) ────────────────────────────────
+  // ─── Stats ─────────────────────────────────────────────────
 
-  ipcMain.handle(IPC_CHANNELS.STATS_GET_DAILY, (_event, _days: number) => {
-    // TODO: implement in Phase 5
-    return []
+  ipcMain.handle(IPC_CHANNELS.STATS_GET_DAILY, (_event, days: number) => {
+    const safeDays = Math.min(Math.max(days || 7, 1), 90)
+    return db.getDailyStats(safeDays)
   })
 
   ipcMain.handle(
     IPC_CHANNELS.STATS_GET_TOP_APPS,
-    (_event, _from: string, _to: string, _limit?: number) => {
-      // TODO: implement in Phase 5
-      return []
+    (_event, from: string, to: string, limit?: number) => {
+      validateDate(from)
+      validateDate(to)
+      return db.getTopApps(from, to, limit ?? 10)
     }
   )
 
-  ipcMain.handle(IPC_CHANNELS.STATS_GET_HEATMAP, (_event, _from: string, _to: string) => {
-    // TODO: implement in Phase 5
+  ipcMain.handle(IPC_CHANNELS.STATS_GET_HEATMAP, (_event, from: string, to: string) => {
+    validateDate(from)
+    validateDate(to)
+    // TODO: implement heatmap aggregation
     return []
   })
 }

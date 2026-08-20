@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Clock, Activity, BarChart3, Settings as SettingsIcon } from 'lucide-react'
 import type { CurrentActivity, DaySummary } from '../../main/types'
-import { formatDuration } from './lib/format'
+import { formatDuration, formatLocalDate } from './lib/format'
+import StatsView from './pages/StatsView'
+import SettingsView from './pages/SettingsView'
 
 type View = 'timeline' | 'stats' | 'settings'
 
@@ -9,7 +11,7 @@ export default function App(): JSX.Element {
   const [view, setView] = useState<View>('timeline')
   const [currentActivity, setCurrentActivity] = useState<CurrentActivity | null>(null)
   const [summary, setSummary] = useState<DaySummary[]>([])
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [selectedDate, setSelectedDate] = useState(() => formatLocalDate(new Date()))
 
   // Listen for real-time activity changes from main process
   useEffect(() => {
@@ -101,8 +103,8 @@ export default function App(): JSX.Element {
               currentActivity={currentActivity}
             />
           )}
-          {view === 'stats' && <PlaceholderView title="Statistics" description="Charts and trends — Phase 5" />}
-          {view === 'settings' && <PlaceholderView title="Settings" description="Settings — Phase 7" />}
+          {view === 'stats' && <StatsView />}
+          {view === 'settings' && <SettingsView />}
         </div>
       </main>
     </div>
@@ -128,10 +130,10 @@ function DaySummaryView({
   const shiftDate = (days: number): void => {
     const d = new Date(selectedDate)
     d.setDate(d.getDate() + days)
-    onDateChange(d.toISOString().split('T')[0])
+    onDateChange(formatLocalDate(d))
   }
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = formatLocalDate(new Date())
   const isToday = selectedDate === today
 
   return (
@@ -229,13 +231,4 @@ function AppRow({ item, maxTime }: { item: DaySummary; maxTime: number }): JSX.E
   )
 }
 
-// ─── Placeholder ────────────────────────────────────────────────
 
-function PlaceholderView({ title, description }: { title: string; description: string }): JSX.Element {
-  return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <h2 className="mb-2 text-xl font-medium text-tt-muted">{title}</h2>
-      <p className="text-sm text-tt-muted">{description}</p>
-    </div>
-  )
-}

@@ -18,3 +18,25 @@ export function formatDuration(seconds: number): string {
 function minsPart(hours: number, minutes: number): string {
   return `${hours}h${minutes > 0 ? ` ${minutes}m` : ''}`
 }
+
+/**
+ * Format a Date to local "YYYY-MM-DD" (no UTC shift).
+ * Unlike toISOString().split('T')[0] which returns UTC date.
+ */
+export function formatLocalDate(d: Date): string {
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+/**
+ * Format seconds to a short label for charts (e.g., "2h", "45m").
+ */
+export function formatShort(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m`
+  const hours = Math.floor(seconds / 3600)
+  const mins = Math.round((seconds % 3600) / 60)
+  return mins > 0 ? `${hours}h${mins}m` : `${hours}h`
+}
