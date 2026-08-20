@@ -4,6 +4,7 @@ import { DatabaseManager } from './database'
 import { TrackingEngine } from './tracking-engine'
 import { AFKDetector } from './afk-detector'
 import { registerIpcHandlers } from './ipc-handlers'
+import { formatLocalDate } from './database'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -66,7 +67,68 @@ function createTray(): void {
   tray = new Tray(icon)
   tray.setToolTip('CarpeDiem')
 
-  const contextMenu = Menu.buildFromTemplate([
+  updateTrayMenu()
+  tray.on('click', () => {
+    if (mainWindow?.isVisible()) {
+      mainWindow.hide()
+    } else {
+      mainWindow?.show()
+      if (mainWindow?.isMinimized()) {
+        mainWindow?.restore()
+      }
+    }
+  })
+}
+
+/** Возвращает "5h 32m" из секунд */
+function formatTrayDuration(seconds: number): string {
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  if (h > 0) return `${h}h ${m}m`
+  if (m > 0) return `${m}m`
+  return `${seconds}s`
+}
+
+/** Перестраивает tray-меню с quick summary сегодняшнего дня */
+function updateTrayMenu(): void {
+  if (!tray || !db || !tracker) return
+
+  const today = formatLocalDate(new Date())
+  const summary = db.getDaySummary(today)
+  const totalActive = summary.reduce((s, a) => s + a.totalTime, 0)
+  const current = tracker.getCurrentActivity()
+
+  // Top 3 apps for quick summary
+  const top3 = summary.slice(0, 3)
+
+  const template: Electron.MenuItemConstructorOptions[] = [
+    { label: `CarpeDiem — ${formatTrayDuration(totalActive)} today`, enabled: false },
+    { type: 'separator' },
+    {
+      label: current.isPaused
+        ? '⏸ Tracking paused'
+        : current.isAfk
+          ? '💤 Away from keyboard'
+          : `▶ ${current.appName}`,
+      enabled: false
+    },
+    current.windowTitle
+      ? { label: `   ${current.windowTitle}`, enabled: false }
+      : { type: 'separator' },
+    { type: 'separator' }
+  ]
+
+  if (top3.length > 0) {
+    for (const app of top3) {
+      template.push({
+        label: `${app.appName} — ${formatTrayDuration(app.totalTime)}`,
+        enabled: false
+      })
+    }
+    template.push({ type: 'separator' })
+  }
+
+  template.push(
     {
       label: 'Open CarpeDiem',
       click: (): void => {
@@ -79,14 +141,18 @@ function createTray(): void {
     { type: 'separator' },
     {
       label: 'Pause Tracking',
+      enabled: !current.isPaused,
       click: (): void => {
         tracker?.pause()
+        updateTrayMenu()
       }
     },
     {
       label: 'Resume Tracking',
+      enabled: current.isPaused,
       click: (): void => {
         tracker?.resume()
+        updateTrayMenu()
       }
     },
     { type: 'separator' },
@@ -96,20 +162,10 @@ function createTray(): void {
         app.quit()
       }
     }
-  ])
+  )
 
-  tray.setContextMenu(contextMenu)
-
-  tray.on('click', () => {
-    if (mainWindow?.isVisible()) {
-      mainWindow.hide()
-    } else {
-      mainWindow?.show()
-      if (mainWindow?.isMinimized()) {
-        mainWindow?.restore()
-      }
-    }
-  })
+  tray.setContextMenu(Menu.buildFromTemplate(template))
+  tray.setToolTip(`CarpeDiem — ${formatTrayDuration(totalActive)} today`)
 }
 
 // ─── App lifecycle ─────────────────────────────────────────────
@@ -139,6 +195,7 @@ app.whenReady().then(() => {
   // Push activity changes to renderer
   tracker.on('activity-changed', () => {
     mainWindow?.webContents.send('tracking:activityChanged', tracker!.getCurrentActivity())
+    updateTrayMenu()
   })
 
   // Apply autostart setting from DB
@@ -149,6 +206,9 @@ app.whenReady().then(() => {
 
   createTray()
   createWindow()
+
+  // Refresh tray menu every 30s (duration grows even without activity change)
+  setInterval(() => updateTrayMenu(), 30_000)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
