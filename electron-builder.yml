@@ -12,6 +12,12 @@ files:
 asarUnpack:
   - resources/**
   - '**/*.{node,dll}'
+extraResources:
+  - from: src/main/migrations
+    to: migrations
+    filter: ['*.sql']
+  - from: resources/icons/trayTemplate.png
+    to: icons/trayTemplate.png
 mac:
   category: public.app-category.productivity
   icon: resources/icons/icon.icns
