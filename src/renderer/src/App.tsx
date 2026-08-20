@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, Component, type ReactNode } from 'react'
-import { Clock, Activity, BarChart3, Settings as SettingsIcon, ChevronRight } from 'lucide-react'
+import { Clock, Activity, BarChart3, Settings as SettingsIcon, ChevronRight, List } from 'lucide-react'
 import type { CurrentActivity, DetailedDaySummary } from '../../main/types'
 import { formatDuration, formatLocalDate } from './lib/format'
 import StatsView from './pages/StatsView'
 import SettingsView from './pages/SettingsView'
+import LogView from './pages/LogView'
 
 // ─── Error Boundary ────────────────────────────────────────────
 
@@ -36,7 +37,7 @@ function hasApi(): boolean {
   return typeof window !== 'undefined' && !!window.api
 }
 
-type View = 'timeline' | 'stats' | 'settings'
+type View = 'timeline' | 'log' | 'stats' | 'settings'
 
 export default function App(): JSX.Element {
   if (!hasApi()) {
@@ -95,21 +96,28 @@ function AppInner(): JSX.Element {
       {/* Sidebar — extra top padding for macOS traffic lights */}
       <nav className="drag-region flex w-16 flex-col items-center gap-4 border-r border-tt-border bg-tt-surface pt-12 pb-6">
         <button
-          className={`no-drag rounded-lg p-3 transition-colors ${view === 'timeline' ? 'bg-tt-accent/20 text-tt-accent' : 'text-tt-muted hover:text-tt-text'}`}
+          className={`no-drag rounded-lg p-3 transition-colors ${view === 'timeline' ? 'bg-tt-accent/30 text-tt-accent' : 'text-tt-muted hover:text-tt-text'}`}
           onClick={() => setView('timeline')}
           title="Timeline"
         >
           <Clock size={22} />
         </button>
         <button
-          className={`no-drag rounded-lg p-3 transition-colors ${view === 'stats' ? 'bg-tt-accent/20 text-tt-accent' : 'text-tt-muted hover:text-tt-text'}`}
+          className={`no-drag rounded-lg p-3 transition-colors ${view === 'log' ? 'bg-tt-accent/30 text-tt-accent' : 'text-tt-muted hover:text-tt-text'}`}
+          onClick={() => setView('log')}
+          title="Daily Log"
+        >
+          <List size={22} />
+        </button>
+        <button
+          className={`no-drag rounded-lg p-3 transition-colors ${view === 'stats' ? 'bg-tt-accent/30 text-tt-accent' : 'text-tt-muted hover:text-tt-text'}`}
           onClick={() => setView('stats')}
           title="Statistics"
         >
           <BarChart3 size={22} />
         </button>
         <button
-          className={`no-drag rounded-lg p-3 transition-colors ${view === 'settings' ? 'bg-tt-accent/20 text-tt-accent' : 'text-tt-muted hover:text-tt-text'}`}
+          className={`no-drag rounded-lg p-3 transition-colors ${view === 'settings' ? 'bg-tt-accent/30 text-tt-accent' : 'text-tt-muted hover:text-tt-text'}`}
           onClick={() => setView('settings')}
           title="Settings"
         >
@@ -121,7 +129,7 @@ function AppInner(): JSX.Element {
       <main className="flex-1 overflow-auto">
         <header className="drag-region flex items-center justify-between border-b border-tt-border px-6 py-4">
           <h1 className="text-lg font-semibold">
-            {view === 'timeline' ? 'Timeline' : view === 'stats' ? 'Statistics' : 'Settings'}
+            {view === 'timeline' ? 'Timeline' : view === 'log' ? 'Daily Log' : view === 'stats' ? 'Statistics' : 'Settings'}
           </h1>
           {/* Current activity indicator */}
           <div className="no-drag flex items-center gap-2 text-sm">
@@ -151,6 +159,12 @@ function AppInner(): JSX.Element {
           {view === 'timeline' && (
             <DaySummaryView
               summary={summary}
+              selectedDate={selectedDate}
+              onDateChange={setSelectedDate}
+            />
+          )}
+          {view === 'log' && (
+            <LogView
               selectedDate={selectedDate}
               onDateChange={setSelectedDate}
             />
