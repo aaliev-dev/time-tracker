@@ -1,5 +1,5 @@
-appId: com.aalievdev.timetracker
-productName: Time Tracker
+appId: com.aalievdev.carpediem
+productName: CarpeDiem
 directories:
   buildResources: resources
   output: release

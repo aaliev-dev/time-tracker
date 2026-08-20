@@ -46,6 +46,11 @@ export function registerIpcHandlers(db: DatabaseManager, tracker: TrackingEngine
     return db.getDaySummary(date)
   })
 
+  ipcMain.handle(IPC_CHANNELS.ACTIVITIES_GET_SUMMARY_DETAILED, (_event, date: string) => {
+    validateDate(date)
+    return db.getDaySummaryDetailed(date)
+  })
+
   // ─── Categories ───────────────────────────────────────────
 
   ipcMain.handle(IPC_CHANNELS.CATEGORIES_GET_ALL, () => {

@@ -17,6 +17,7 @@ export interface ActivityEvent {
 export interface CurrentActivity {
   appName: string
   windowTitle: string
+  url?: string | null
   tsStart: string
   isAfk: boolean
   isPaused: boolean
@@ -46,6 +47,23 @@ export interface DaySummary {
   categoryName?: string
 }
 
+/** Окно/вкладка внутри приложения — для детальной разбивки */
+export interface WindowEntry {
+  windowTitle: string
+  url: string | null
+  totalTime: number // seconds
+}
+
+/** Детальная сводка за день: appName с разбивкой по окнам/вкладкам */
+export interface DetailedDaySummary {
+  appName: string
+  totalTime: number // seconds
+  percentage: number
+  categoryId?: number | null
+  categoryName?: string
+  windows: WindowEntry[]
+}
+
 export interface DailyStat {
   date: string // YYYY-MM-DD
   totalActive: number // seconds
@@ -57,6 +75,7 @@ export const IPC_CHANNELS = {
   ACTIVITIES_GET_DAY: 'activities:getDay',
   ACTIVITIES_GET_RANGE: 'activities:getRange',
   ACTIVITIES_GET_SUMMARY: 'activities:getSummary',
+  ACTIVITIES_GET_SUMMARY_DETAILED: 'activities:getSummaryDetailed',
   STATS_GET_DAILY: 'stats:getDaily',
   STATS_GET_TOP_APPS: 'stats:getTopApps',
   STATS_GET_HEATMAP: 'stats:getHeatmap',
@@ -85,6 +104,7 @@ export interface TimeTrackerApi {
     getDay: (date: string) => Promise<ActivityEvent[]>
     getRange: (from: string, to: string) => Promise<ActivityEvent[]>
     getSummary: (date: string) => Promise<DaySummary[]>
+    getSummaryDetailed: (date: string) => Promise<DetailedDaySummary[]>
   }
   stats: {
     getDaily: (days: number) => Promise<DailyStat[]>

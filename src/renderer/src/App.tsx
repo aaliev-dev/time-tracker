@@ -1,16 +1,67 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Clock, Activity, BarChart3, Settings as SettingsIcon } from 'lucide-react'
-import type { CurrentActivity, DaySummary } from '../../main/types'
+import { useState, useEffect, useCallback, Component, type ReactNode } from 'react'
+import { Clock, Activity, BarChart3, Settings as SettingsIcon, ChevronRight } from 'lucide-react'
+import type { CurrentActivity, DetailedDaySummary } from '../../main/types'
 import { formatDuration, formatLocalDate } from './lib/format'
 import StatsView from './pages/StatsView'
 import SettingsView from './pages/SettingsView'
 
+// ─── Error Boundary ────────────────────────────────────────────
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
+  state: { error: string | null } = { error: null }
+
+  static getDerivedStateFromError(error: Error): { error: string } {
+    return { error: error.message }
+  }
+
+  render(): ReactNode {
+    if (this.state.error) {
+      return (
+        <div className="flex h-screen flex-col items-center justify-center gap-4 bg-tt-bg p-8 text-center text-tt-text">
+          <h1 className="text-xl font-semibold text-tt-red">Something went wrong</h1>
+          <p className="max-w-md text-sm text-tt-muted">{this.state.error}</p>
+          <p className="text-xs text-tt-muted">
+            window.api is {typeof window !== 'undefined' && 'api' in window ? 'available' : 'NOT available'}
+          </p>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+// ─── API guard ─────────────────────────────────────────────────
+
+function hasApi(): boolean {
+  return typeof window !== 'undefined' && !!window.api
+}
+
 type View = 'timeline' | 'stats' | 'settings'
 
 export default function App(): JSX.Element {
+  if (!hasApi()) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-tt-bg p-8 text-center text-tt-text">
+        <Clock size={48} className="text-tt-accent" />
+        <h1 className="text-xl font-semibold">Time Tracker</h1>
+        <p className="max-w-md text-sm text-tt-muted">
+          Preload script not loaded. If running outside Electron, this is expected.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <ErrorBoundary>
+      <AppInner />
+    </ErrorBoundary>
+  )
+}
+
+function AppInner(): JSX.Element {
   const [view, setView] = useState<View>('timeline')
   const [currentActivity, setCurrentActivity] = useState<CurrentActivity | null>(null)
-  const [summary, setSummary] = useState<DaySummary[]>([])
+  const [summary, setSummary] = useState<DetailedDaySummary[]>([])
   const [selectedDate, setSelectedDate] = useState(() => formatLocalDate(new Date()))
 
   // Listen for real-time activity changes from main process
@@ -28,7 +79,7 @@ export default function App(): JSX.Element {
 
   // Load summary when date changes
   const loadSummary = useCallback(async () => {
-    const result = await window.api.activities.getSummary(selectedDate)
+    const result = await window.api.activities.getSummaryDetailed(selectedDate)
     setSummary(result)
   }, [selectedDate])
 
@@ -68,12 +119,12 @@ export default function App(): JSX.Element {
 
       {/* Main content */}
       <main className="flex-1 overflow-auto">
-        <header className="flex items-center justify-between border-b border-tt-border px-6 py-4">
+        <header className="drag-region flex items-center justify-between border-b border-tt-border px-6 py-4">
           <h1 className="text-lg font-semibold">
             {view === 'timeline' ? 'Timeline' : view === 'stats' ? 'Statistics' : 'Settings'}
           </h1>
           {/* Current activity indicator */}
-          <div className="flex items-center gap-2 text-sm">
+          <div className="no-drag flex items-center gap-2 text-sm">
             <Activity
               size={14}
               className={
@@ -84,12 +135,14 @@ export default function App(): JSX.Element {
                     : 'text-tt-green'
               }
             />
-            <span className="text-tt-muted">
+            <span className="max-w-md truncate text-tt-muted">
               {currentActivity?.isPaused
                 ? '⏸ Paused'
                 : currentActivity?.isAfk
                   ? '😴 AFK'
-                  : `Now: ${currentActivity?.appName ?? '—'}`}
+                  : currentActivity?.windowTitle
+                    ? `${currentActivity.appName} — ${currentActivity.windowTitle}`
+                    : `Now: ${currentActivity?.appName ?? '—'}`}
             </span>
           </div>
         </header>
@@ -119,7 +172,7 @@ function DaySummaryView({
   onDateChange,
   currentActivity
 }: {
-  summary: DaySummary[]
+  summary: DetailedDaySummary[]
   selectedDate: string
   onDateChange: (date: string) => void
   currentActivity: CurrentActivity | null
@@ -204,29 +257,58 @@ function DaySummaryView({
 
 // ─── Single App Row ────────────────────────────────────────────
 
-function AppRow({ item, maxTime }: { item: DaySummary; maxTime: number }): JSX.Element {
+function AppRow({ item, maxTime }: { item: DetailedDaySummary; maxTime: number }): JSX.Element {
+  const [expanded, setExpanded] = useState(false)
   const barWidth = (item.totalTime / maxTime) * 100
+  const hasWindows = item.windows.length > 1
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-tt-border bg-tt-surface p-3">
-      {/* Bar */}
-      <div className="relative h-8 flex-1 overflow-hidden rounded">
-        <div
-          className="absolute inset-y-0 left-0 rounded bg-tt-accent/20"
-          style={{ width: `${barWidth}%` }}
-        />
-        <div className="relative flex h-full items-center justify-between px-3">
-          <span className="text-sm font-medium">{item.appName}</span>
+    <div className="rounded-lg border border-tt-border bg-tt-surface">
+      <button
+        onClick={() => hasWindows && setExpanded(!expanded)}
+        className={`flex w-full items-center gap-2 p-3 ${hasWindows ? 'cursor-pointer hover:bg-tt-bg/50' : 'cursor-default'}`}
+      >
+        {/* Chevron or spacer */}
+        <div className="w-4 shrink-0">
+          {hasWindows && (
+            <ChevronRight
+              size={16}
+              className={`text-tt-muted transition-transform ${expanded ? 'rotate-90' : ''}`}
+            />
+          )}
         </div>
-      </div>
-      {/* Time */}
-      <div className="w-20 text-right text-sm text-tt-muted">
-        {formatDuration(item.totalTime)}
-      </div>
-      {/* Percentage */}
-      <div className="w-12 text-right text-xs text-tt-muted">
-        {item.percentage.toFixed(0)}%
-      </div>
+        {/* Bar */}
+        <div className="relative h-8 flex-1 overflow-hidden rounded">
+          <div
+            className="absolute inset-y-0 left-0 rounded bg-tt-accent/20"
+            style={{ width: `${barWidth}%` }}
+          />
+          <div className="relative flex h-full items-center px-3">
+            <span className="text-sm font-medium">{item.appName}</span>
+          </div>
+        </div>
+        {/* Time */}
+        <div className="w-20 text-right text-sm text-tt-muted">
+          {formatDuration(item.totalTime)}
+        </div>
+        {/* Percentage */}
+        <div className="w-12 text-right text-xs text-tt-muted">
+          {item.percentage.toFixed(0)}%
+        </div>
+      </button>
+
+      {/* Expanded: window titles breakdown */}
+      {expanded && hasWindows && (
+        <div className="border-t border-tt-border px-3 pb-2 pt-1">
+          {item.windows.map((win, idx) => (
+            <div key={idx} className="flex items-center gap-2 py-1.5 pl-6">
+              <span className="flex-1 truncate text-xs text-tt-muted">{win.windowTitle || '(empty)'}</span>
+              <span className="w-20 text-right text-xs text-tt-muted">{formatDuration(win.totalTime)}</span>
+              <span className="w-12" />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
