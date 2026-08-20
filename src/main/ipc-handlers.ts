@@ -152,6 +152,49 @@ export function registerIpcHandlers(db: DatabaseManager, tracker: TrackingEngine
     return filePath
   })
 
+  ipcMain.handle(IPC_CHANNELS.EXPORT_JSON, async (_event, from: string, to: string) => {
+    validateDate(from)
+    validateDate(to)
+    const events = db.getEventsByRange(from, to)
+
+    const data = {
+      exportedAt: new Date().toISOString(),
+      dateRange: { from, to },
+      eventCount: events.length,
+      events: events.map((e) => ({
+        tsStart: e.tsStart,
+        tsEnd: e.tsEnd,
+        durationSec: e.duration,
+        appName: e.appName,
+        appBundle: e.appBundleId,
+        windowTitle: e.windowTitle,
+        url: e.url ?? null,
+        categoryId: e.categoryId,
+        isAfk: e.isAfk,
+        isPrivate: e.isPrivate
+      }))
+    }
+
+    const json = JSON.stringify(data, null, 2)
+
+    const downloadsDir = join(homedir(), 'Downloads')
+    const fileName = `timetracker_export_${from}_${to}.json`
+    const filePath = join(downloadsDir, fileName)
+    writeFileSync(filePath, json, 'utf-8')
+
+    const focusedWindow = BrowserWindow.getFocusedWindow()
+    if (focusedWindow) {
+      dialog.showMessageBox(focusedWindow, {
+        type: 'info',
+        title: 'Export Complete',
+        message: `Exported ${events.length} events`,
+        detail: `Saved to: ${filePath}`
+      })
+    }
+
+    return filePath
+  })
+
   // ─── Stats ─────────────────────────────────────────────────
 
   ipcMain.handle(IPC_CHANNELS.STATS_GET_DAILY, (_event, days: number) => {
