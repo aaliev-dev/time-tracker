@@ -112,5 +112,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Icon visibility (JPEG→PNG)** — macOS app icons have transparent backgrounds; JPEG format doesn't support alpha channel, making icons invisible (black on dark theme `#16161e`). Changed `toJPEG()` → `toPNG()` in `app-icons.ts`
+- **App icons all identical in packaged mode** — `app.getFileIcon()` returns the same generic icon for all apps in unsigned packaged Electron. Rewrote `app-icons.ts` to read `.icns` directly from app bundles: resolves app path via `mdfind`, parses `Info.plist` via `plutil -convert json`, converts `.icns` → PNG 32×32 via `sips` (preserves alpha channel). Uses full paths (`/usr/bin/*`) since packaged app may have empty PATH. Falls back to `getFileIcon()` for apps without `.icns` (system processes)
 - **Domain text centering** — `<button>` elements have `text-align: center` by default (UA stylesheet); `BrowserDetail` domain spans with `flex-1` inherited this, causing domain names to appear visually centered. Added `text-left` to AppRow and BrowserDetail buttons
 - **Text selection** — added `user-select: text` globally so any text in the app can be selected and copied (drag-region areas keep `user-select: none` for window dragging)
