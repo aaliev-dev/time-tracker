@@ -72,6 +72,32 @@ gh pr merge --squash --delete-branch
 При каждом PR, который меняет поведение, добавлять запись в `CHANGELOG.md`
 в секцию `[Unreleased]`.
 
+### DMG-сборка и тестирование (обязательно!)
+
+**После каждого PR, который меняет код main/preload/renderer — собирать DMG и тестировать в packaged-режиме.**
+
+Dev-режим (`npm run dev`) не покрывает production-специфику:
+пути к ресурсам (`process.resourcesPath`), asar, code signing, native modules.
+Многие баги (migrations not found, tray icon path, extraResources) видны только в `.app`.
+
+Паттерн:
+```bash
+npm run package:mac                          # сборка DMG
+pkill -f "CarpeDiem" 2>/dev/null             # убить старый процесс
+rm -rf /Applications/CarpeDiem.app           # удалить старую версию
+cp -R release/mac-arm64/CarpeDiem.app /Applications/
+xattr -cr /Applications/CarpeDiem.app        # снять quarantine (unsigned app)
+# Запуск и проверка:
+/Applications/CarpeDiem.app/Contents/MacOS/CarpeDiem 2>&1
+# Проверить: окно открылось, трекинг работает, tray есть, БД инициализирована
+```
+
+Если DMG уже собран и только менялся код — можно пересобрать без чистого install:
+```bash
+npm run package:mac
+# далее reinstall как выше
+```
+
 ## Что делать / чего не делать
 
 ### ✅ Делай
@@ -81,6 +107,7 @@ gh pr merge --squash --delete-branch
 - Тестируй что TrackingEngine не пишет события когда paused
 - Проверяй что private окна не трекаются
 - Отмечай изменения в CHANGELOG.md
+- **После каждого PR с кодовыми изменениями — собирай DMG и тестируй в packaged-режиме** (см. секцию "DMG-сборка и тестирование")
 
 ### ❌ Не делай
 - Не добавляй network requests — приложение локальное
