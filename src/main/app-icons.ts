@@ -53,9 +53,13 @@ function resolveAppPath(appName: string, bundleId?: string): string | null {
 }
 
 /**
- * Возвращает data URL иконки приложения (JPEG 32×32, base64).
+ * Возвращает data URL иконки приложения (PNG 32×32 с прозрачностью, base64).
  * Кэшируется по ключу bundleId||appName.
  * Возвращает null, если иконка недоступна (в renderer покажется fallback — первая буква).
+ *
+ * PNG вместо JPEG: macOS app icons имеют прозрачный фон (alpha channel).
+ * JPEG не поддерживает прозрачность → transparent pixels станут чёрными и
+ * иконки будут невидимы на тёмном фоне (#16161e).
  */
 export async function getAppIcon(appName: string, bundleId?: string): Promise<string | null> {
   const cacheKey = bundleId || appName
@@ -79,9 +83,9 @@ export async function getAppIcon(appName: string, bundleId?: string): Promise<st
     }
 
     const resized = icon.resize({ width: 32, height: 32 })
-    // JPEG — компактнее PNG для фотографических иконок; 80% качество — визуально идентично
-    const base64 = resized.toJPEG(80).toString('base64')
-    const dataUrl = `data:image/jpeg;base64,${base64}`
+    // PNG сохраняет alpha channel — прозрачный фон остаётся прозрачным
+    const base64 = resized.toPNG().toString('base64')
+    const dataUrl = `data:image/png;base64,${base64}`
 
     iconCache.set(cacheKey, dataUrl)
     log.debug(`[AppIcons] Icon resolved for: ${appName}`)
