@@ -465,6 +465,14 @@ export class DatabaseManager {
     return row ? rowToCategory(row) : undefined
   }
 
+  /** Получить категорию по имени (например 'AFK', 'Development') */
+  getCategoryByName(name: string): Category | undefined {
+    const row = this.db
+      .prepare('SELECT * FROM categories WHERE name = ?')
+      .get(name) as RawCategoryRow | undefined
+    return row ? rowToCategory(row) : undefined
+  }
+
   // ─── Category Rules ──────────────────────────────────────────
 
   /**

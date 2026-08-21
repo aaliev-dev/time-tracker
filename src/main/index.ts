@@ -212,8 +212,10 @@ app.whenReady().then(() => {
   tracker = new TrackingEngine(db)
   tracker.start()
 
-  // Initialize AFK detector
-  afkDetector = new AFKDetector()
+  // Initialize AFK detector — load threshold from DB settings
+  const savedThreshold = db.getSetting('idleThreshold')
+  const idleThreshold = savedThreshold ? parseInt(savedThreshold) || 60 : 60
+  afkDetector = new AFKDetector(idleThreshold)
   afkDetector.on('afk-start', () => {
     tracker?.onAfkStart()
   })
@@ -223,7 +225,7 @@ app.whenReady().then(() => {
   afkDetector.start()
 
   // IPC — real handlers
-  registerIpcHandlers(db, tracker)
+  registerIpcHandlers(db, tracker, afkDetector)
 
   // Push activity changes to renderer
   tracker.on('activity-changed', () => {

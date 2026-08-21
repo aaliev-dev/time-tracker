@@ -106,11 +106,16 @@ export class TrackingEngine extends EventEmitter {
 
   /**
    * Вызывается AFKDetector при возврате из idle/sleep.
-   * Пишет AFK событие с duration = время отсутствия.
+   * Пишет AFK событие с duration = время отсутствия,
+   * привязанное к категории "AFK".
    */
   onAfkEnd(afkDuration: number): void {
     if (!this.isAfk) return
     this.isAfk = false
+
+    // Находим categoryId для AFK (категория создаётся миграцией 003)
+    const afkCategory = this.db.getCategoryByName('AFK')
+    const afkCategoryId = afkCategory?.id ?? null
 
     // Записываем AFK событие
     const now = new Date()
@@ -125,7 +130,7 @@ export class TrackingEngine extends EventEmitter {
       appBundleId: undefined,
       windowTitle: 'Away from keyboard',
       url: null,
-      categoryId: null,
+      categoryId: afkCategoryId,
       isAfk: true,
       isPrivate: false
     })

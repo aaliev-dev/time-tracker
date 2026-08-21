@@ -6,16 +6,17 @@ import { log } from './safe-log'
  * AFKDetector — определяет когда пользователь "away from keyboard".
  *
  * Источники сигналов:
- * 1. powerMonitor.getSystemIdleTime() — системный idle (мс без input событий).
- *    Polling каждые 5 сек (дешевле, чем 1/сек).
+ * 1. powerMonitor.getSystemIdleTime() — системный idle (сек без input событий
+ *    клавиатуры/мыши). Polling каждые 5 сек (дешевле, чем 1/сек).
  * 2. powerMonitor 'suspend' / 'resume' — Mac уснул / проснулся.
  * 3. powerMonitor 'lock-screen' / 'unlock-screen' — экран заблокирован.
  *
- * Порог: 3 минуты (180 сек) бездействия → AFK (как ActivityWatch / Timing).
+ * Порог по умолчанию: 60 секунд (1 минута) бездействия → AFK.
+ * Порог можно переопределить через настройку 'idleThreshold' в БД.
  * При возврате: вычисляем точное время отсутствия для записи в БД.
  */
 export class AFKDetector extends EventEmitter {
-  private idleThresholdSec: number = 180 // 3 минуты
+  private idleThresholdSec: number = 60 // 1 минута по умолчанию
   private pollIntervalMs: number = 5000 // check каждые 5 сек
   private intervalId: NodeJS.Timeout | null = null
 
@@ -29,6 +30,16 @@ export class AFKDetector extends EventEmitter {
     }
 
     this.setupPowerMonitor()
+  }
+
+  /** Обновить порог idle (вызывается при изменении настройки в DB) */
+  setIdleThreshold(seconds: number): void {
+    this.idleThresholdSec = seconds
+    log.info('[AFKDetector] Threshold updated:', seconds, 'sec')
+  }
+
+  getIdleThreshold(): number {
+    return this.idleThresholdSec
   }
 
   // ─── Lifecycle ───────────────────────────────────────────────

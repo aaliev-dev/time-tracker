@@ -4,6 +4,7 @@ import { join } from 'path'
 import { homedir } from 'os'
 import type { DatabaseManager } from './database'
 import type { TrackingEngine } from './tracking-engine'
+import type { AFKDetector } from './afk-detector'
 import { IPC_CHANNELS, type Category, type CategoryRule } from './types'
 
 /**
@@ -13,7 +14,7 @@ import { IPC_CHANNELS, type Category, type CategoryRule } from './types'
  * Важно: данные приходят из renderer (недоверенный контекст),
  * поэтому валидируем на стороне main.
  */
-export function registerIpcHandlers(db: DatabaseManager, tracker: TrackingEngine): void {
+export function registerIpcHandlers(db: DatabaseManager, tracker: TrackingEngine, afkDetector: AFKDetector): void {
   // ─── Tracking ────────────────────────────────────────────
 
   ipcMain.handle(IPC_CHANNELS.TRACKING_GET_CURRENT, () => {
@@ -103,6 +104,10 @@ export function registerIpcHandlers(db: DatabaseManager, tracker: TrackingEngine
       }
       if (key === 'excludedApps') {
         tracker.loadExcludedApps()
+      }
+      if (key === 'idleThreshold') {
+        const sec = typeof value === 'number' ? value : parseInt(String(value)) || 60
+        afkDetector.setIdleThreshold(sec)
       }
     }
   )
