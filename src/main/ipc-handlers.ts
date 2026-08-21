@@ -5,6 +5,7 @@ import { homedir } from 'os'
 import type { DatabaseManager } from './database'
 import type { TrackingEngine } from './tracking-engine'
 import type { AFKDetector } from './afk-detector'
+import { getAppIcon } from './app-icons'
 import { IPC_CHANNELS, type Category, type CategoryRule } from './types'
 
 /**
@@ -226,6 +227,15 @@ export function registerIpcHandlers(db: DatabaseManager, tracker: TrackingEngine
     validateDate(to)
     return db.getHeatmap(from, to)
   })
+
+  // ─── App icons ───────────────────────────────────────────────
+
+  ipcMain.handle(
+    IPC_CHANNELS.APPS_GET_ICON,
+    async (_event, appName: string, bundleId?: string) => {
+      return getAppIcon(appName, bundleId)
+    }
+  )
 }
 
 // ─── Validation helpers ────────────────────────────────────────

@@ -103,3 +103,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **AFK category** — migration `003_afk_category.sql` adds "AFK" category; AFK events now have `categoryId` linked to it (were `null` before, invisible in stats)
   - **Dynamic threshold** — idle threshold loaded from DB settings at startup; `setIdleThreshold()` method on AFKDetector; IPC settings handler updates threshold live when slider changes
   - **`getCategoryByName()`** — new public DB method to look up category by name (used by TrackingEngine for AFK category)
+- **Phase 15: Timeline — app icons, website grouping**
+  - **App icons** — `app-icons.ts` module: resolves .app path via `mdfind` (Spotlight) by bundleId, falls back to `/Applications/`, uses `app.getFileIcon()` → 32×32 JPEG base64; cached in Map. `useAppIcon` hook fetches via IPC, `AppIcon` component shows icon or fallback (first letter in colored circle)
+  - **`appBundleId` in summary** — `DetailedDaySummary` now includes `appBundleId`; SQL query updated; needed for icon resolution
+  - **`APPS_GET_ICON` IPC** — new `apps:getIcon` channel + preload `apps.getIcon()` method
+  - **Browser domain grouping** — for browser apps (Chrome, Safari, Firefox, Arc, Edge, etc.), Timeline groups by domain (figma.com, jira.com) instead of window titles; `BrowserDetail` component with drill-down to individual tabs
+  - **Same tabs merged** — SQL already groups by `app_name, window_title, url`; domain grouping further merges tabs from same site
