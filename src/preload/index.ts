@@ -46,6 +46,9 @@ const api = {
   export: {
     csv: (from: string, to: string) => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_CSV, from, to),
     json: (from: string, to: string) => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_JSON, from, to)
+  },
+  apps: {
+    getIcon: (appName: string, bundleId?: string) => ipcRenderer.invoke(IPC_CHANNELS.APPS_GET_ICON, appName, bundleId)
   }
 }
 

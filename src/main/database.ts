@@ -366,6 +366,7 @@ export class DatabaseManager {
       >(`
       SELECT
         e.app_name        AS appName,
+        e.app_bundle      AS appBundleId,
         e.window_title    AS windowTitle,
         e.url             AS url,
         SUM(e.duration)   AS totalTime,
@@ -386,6 +387,7 @@ export class DatabaseManager {
       if (!app) {
         app = {
           appName: row.appName,
+          appBundleId: row.appBundleId,
           totalTime: 0,
           percentage: 0,
           categoryId: row.categoryId ?? undefined,
@@ -657,6 +659,7 @@ interface RawSummaryRow {
 
 interface RawDetailedRow {
   appName: string
+  appBundleId: string | null
   windowTitle: string
   url: string | null
   totalTime: number

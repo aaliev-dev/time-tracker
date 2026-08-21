@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, Component, type ReactNode } from 'react'
+import { useState, useEffect, useCallback, useRef, Component, type ReactNode } from 'react'
 import { Clock, Activity, BarChart3, Settings as SettingsIcon, ChevronRight, List } from 'lucide-react'
-import type { CurrentActivity, DetailedDaySummary } from '../../main/types'
+import type { CurrentActivity, DetailedDaySummary, WindowEntry } from '../../main/types'
 import { formatDuration, formatLocalDate } from './lib/format'
 import StatsView from './pages/StatsView'
 import SettingsView from './pages/SettingsView'
@@ -250,28 +250,132 @@ function DaySummaryView({
   )
 }
 
+// ─── App icons & browser helpers ────────────────────────────────
+
+/** Браузеры — для них группируем вкладки по домену вместо имени окна */
+const BROWSER_APPS = new Set([
+  'Chrome', 'Google Chrome', 'Chromium', 'Brave Browser',
+  'Safari', 'Firefox', 'Arc', 'Microsoft Edge', 'Edge',
+  'Vivaldi', 'Opera', 'Thorium'
+])
+
+/** Проверяет, является ли приложение браузером */
+function isBrowser(appName: string): boolean {
+  return BROWSER_APPS.has(appName)
+}
+
+/** Извлекает домен из URL (без www.) */
+function extractDomain(url: string | null): string | null {
+  if (!url) return null
+  try {
+    const u = new URL(url)
+    return u.hostname.replace(/^www\./, '')
+  } catch {
+  // Не валидный URL — попробуем найти домен вручную
+    const match = url.match(/(?:https?:\/\/)?(?:www\.)?([a-z0-9][a-z0-9.-]+\.[a-z]{2,})/i)
+    return match ? match[1] : null
+  }
+}
+
+/** Группировка вкладок браузера по домену */
+interface DomainGroup {
+  domain: string
+  totalTime: number
+  tabs: WindowEntry[]
+}
+
+function groupByDomain(windows: WindowEntry[]): DomainGroup[] {
+  const domainMap = new Map<string, DomainGroup>()
+
+  for (const win of windows) {
+    const domain = extractDomain(win.url) ?? '(no URL)'
+    let group = domainMap.get(domain)
+    if (!group) {
+      group = { domain, totalTime: 0, tabs: [] }
+      domainMap.set(domain, group)
+    }
+    group.totalTime += win.totalTime
+    group.tabs.push(win)
+  }
+
+  const groups = Array.from(domainMap.values())
+  groups.sort((a, b) => b.totalTime - a.totalTime)
+  return groups
+}
+
+/** Hook: загружает иконку приложения через IPC, кэширует в ref */
+const iconCache = new Map<string, string | null>()
+function useAppIcon(appName: string, bundleId?: string | null): string | null {
+  const [icon, setIcon] = useState<string | null>(() => {
+    const key = bundleId || appName
+    return iconCache.get(key) ?? null
+  })
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+
+  useEffect(() => {
+    const key = bundleId || appName
+    const cached = iconCache.get(key)
+    if (cached !== undefined) {
+      setIcon(cached)
+      return
+    }
+    // Загружаем иконку
+    window.api.apps.getIcon(appName, bundleId ?? undefined).then((dataUrl) => {
+      iconCache.set(key, dataUrl)
+      if (mountedRef.current) setIcon(dataUrl)
+    })
+  }, [appName, bundleId])
+
+  return icon
+}
+
+/** Компактная иконка 28×28 или fallback — первая буква в кружке */
+function AppIcon({ appName, bundleId }: { appName: string; bundleId?: string | null }): JSX.Element {
+  const icon = useAppIcon(appName, bundleId)
+  if (icon) {
+    return <img src={icon} alt={appName} className="h-7 w-7 shrink-0 rounded" />
+  }
+  // Fallback — кружок с первой буквой
+  const initial = appName.charAt(0).toUpperCase()
+  return (
+    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-tt-accent/30 text-xs font-bold text-tt-accent">
+      {initial}
+    </div>
+  )
+}
+
 // ─── Single App Row ────────────────────────────────────────────
 
 function AppRow({ item, maxTime }: { item: DetailedDaySummary; maxTime: number }): JSX.Element {
   const [expanded, setExpanded] = useState(false)
   const barWidth = (item.totalTime / maxTime) * 100
-  const hasWindows = item.windows.length > 1
+  const browser = isBrowser(item.appName)
+  const hasDetail = browser
+    ? groupByDomain(item.windows).length > 1
+    : item.windows.length > 1
 
   return (
     <div className="rounded-lg border border-tt-border bg-tt-surface">
       <button
-        onClick={() => hasWindows && setExpanded(!expanded)}
-        className={`flex w-full items-center gap-2 p-3 ${hasWindows ? 'cursor-pointer hover:bg-tt-bg/50' : 'cursor-default'}`}
+        onClick={() => hasDetail && setExpanded(!expanded)}
+        className={`flex w-full items-center gap-2 p-3 ${hasDetail ? 'cursor-pointer hover:bg-tt-bg/50' : 'cursor-default'}`}
       >
         {/* Chevron or spacer */}
         <div className="w-4 shrink-0">
-          {hasWindows && (
+          {hasDetail && (
             <ChevronRight
               size={16}
               className={`text-tt-muted transition-transform ${expanded ? 'rotate-90' : ''}`}
             />
           )}
         </div>
+        {/* App icon */}
+        <AppIcon appName={item.appName} bundleId={item.appBundleId} />
         {/* Bar */}
         <div className="relative h-8 flex-1 overflow-hidden rounded">
           <div
@@ -292,18 +396,71 @@ function AppRow({ item, maxTime }: { item: DetailedDaySummary; maxTime: number }
         </div>
       </button>
 
-      {/* Expanded: window titles breakdown */}
-      {expanded && hasWindows && (
-        <div className="border-t border-tt-border px-3 pb-2 pt-1">
-          {item.windows.map((win, idx) => (
-            <div key={idx} className="flex items-center gap-2 py-1.5 pl-6">
-              <span className="flex-1 truncate text-xs text-tt-text/70">{win.windowTitle || '(empty)'}</span>
-              <span className="w-20 text-right text-xs text-tt-text/70">{formatDuration(win.totalTime)}</span>
-              <span className="w-12" />
-            </div>
-          ))}
-        </div>
+      {/* Expanded: browser → domains with tabs; other apps → windows */}
+      {expanded && hasDetail && (
+        browser ? (
+          <BrowserDetail windows={item.windows} />
+        ) : (
+          <div className="border-t border-tt-border px-3 pb-2 pt-1">
+            {item.windows.map((win, idx) => (
+              <div key={idx} className="flex items-center gap-2 py-1.5 pl-12">
+                <span className="flex-1 truncate text-xs text-tt-text/70">{win.windowTitle || '(empty)'}</span>
+                <span className="w-20 text-right text-xs text-tt-text/70">{formatDuration(win.totalTime)}</span>
+                <span className="w-12" />
+              </div>
+            ))}
+          </div>
+        )
       )}
+    </div>
+  )
+}
+
+/** Browser detail: domains with drill-down to individual tabs */
+function BrowserDetail({ windows }: { windows: WindowEntry[] }): JSX.Element {
+  const groups = groupByDomain(windows)
+  const [expandedDomain, setExpandedDomain] = useState<string | null>(null)
+
+  return (
+    <div className="border-t border-tt-border px-3 pb-2 pt-1">
+      {groups.map((group) => {
+        const showTabs = expandedDomain === group.domain
+        const multiTabs = group.tabs.length > 1
+
+        return (
+          <div key={group.domain} className="py-1 pl-12">
+            <button
+              onClick={() => multiTabs && setExpandedDomain(showTabs ? null : group.domain)}
+              className={`flex w-full items-center gap-1.5 ${multiTabs ? 'cursor-pointer' : 'cursor-default'}`}
+            >
+              {multiTabs && (
+                <ChevronRight
+                  size={12}
+                  className={`text-tt-muted transition-transform ${showTabs ? 'rotate-90' : ''}`}
+                />
+              )}
+              {!multiTabs && <div className="w-3" />}
+              <span className="flex-1 truncate text-xs font-medium text-tt-text/80">{group.domain}</span>
+              <span className="w-20 text-right text-xs text-tt-muted">{formatDuration(group.totalTime)}</span>
+              <div className="w-12" />
+            </button>
+
+            {showTabs && multiTabs && (
+              <div className="mt-0.5 ml-4 space-y-0.5 border-l border-tt-border/50 pl-3">
+                {group.tabs.map((tab, idx) => (
+                  <div key={idx} className="flex items-center gap-1 py-0.5">
+                    <span className="flex-1 truncate text-[11px] text-tt-muted">
+                      {tab.windowTitle || tab.url || '(empty)'}
+                    </span>
+                    <span className="w-20 text-right text-[11px] text-tt-muted">{formatDuration(tab.totalTime)}</span>
+                    <div className="w-12" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
