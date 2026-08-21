@@ -28,6 +28,12 @@ Privacy-first: all data local, no network requests.
 - Commit format: `type(scope): description`
 - Update `CHANGELOG.md` in `[Unreleased]` section
 
+## DMG build & test (mandatory!)
+- After every PR that changes main/preload/renderer code — rebuild DMG and test in packaged mode
+- Dev mode (`npm run dev`) does NOT cover production paths (`process.resourcesPath`), asar, native modules
+- Pattern: `npm run package:mac` → kill old process → `cp -R release/mac-arm64/CarpeDiem.app /Applications/` → `xattr -cr` → launch & verify
+- Full details in `AGENTS.md` → "DMG-сборка и тестирование"
+
 ## Do NOT
 - Do NOT add `any` type without justification
 - Do NOT enable `nodeIntegration` or disable `contextIsolation`
