@@ -2,7 +2,7 @@ import Database from 'better-sqlite3'
 import { readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
-import type { ActivityEvent, Category, CategoryRule, DaySummary, DailyStat, ProductivityStat, HeatmapCell, DetailedDaySummary } from './types'
+import type { ActivityEvent, Category, CategoryRule, DaySummary, DailyStat, ProductivityStat, HeatmapCell, DetailedDaySummary, AppTag, TagTargetType, TagType } from './types'
 
 /**
  * Database — обёртка над better-sqlite3.
@@ -576,6 +576,46 @@ export class DatabaseManager {
     }
   }
 
+  // ─── App Tags (manual work/neutral/distracting) ────────────────
+
+  /**
+   * Возвращает все ручные теги приложений и доменов.
+   */
+  getAllAppTags(): AppTag[] {
+    const rows = this.db
+      .prepare('SELECT * FROM app_tags ORDER BY updated_at DESC')
+      .all() as RawAppTagRow[]
+    return rows.map(rowToAppTag)
+  }
+
+  /**
+   * Устанавливает тег для приложения или домена (upsert).
+   * Если тег уже существует для (target_type, target_key) — обновляет.
+   */
+  setAppTag(targetType: TagTargetType, targetKey: string, tag: TagType): AppTag {
+    this.db
+      .prepare(`
+        INSERT INTO app_tags (target_type, target_key, tag, updated_at)
+        VALUES (?, ?, ?, datetime('now'))
+        ON CONFLICT(target_type, target_key) DO UPDATE SET tag = excluded.tag, updated_at = datetime('now')
+      `)
+      .run(targetType, targetKey, tag)
+
+    const row = this.db
+      .prepare('SELECT * FROM app_tags WHERE target_type = ? AND target_key = ?')
+      .get(targetType, targetKey) as RawAppTagRow
+    return rowToAppTag(row)
+  }
+
+  /**
+   * Удаляет тег для приложения или домена.
+   */
+  deleteAppTag(targetType: TagTargetType, targetKey: string): void {
+    this.db
+      .prepare('DELETE FROM app_tags WHERE target_type = ? AND target_key = ?')
+      .run(targetType, targetKey)
+  }
+
   // ─── Settings ────────────────────────────────────────────────
 
   getSetting(key: string): string | null {
@@ -682,6 +722,24 @@ function rowToRule(row: RawRuleRow): CategoryRule {
     field: row.field as CategoryRule['field'],
     matchType: row.match_type as CategoryRule['matchType'],
     value: row.value
+  }
+}
+
+interface RawAppTagRow {
+  id: number
+  target_type: string
+  target_key: string
+  tag: string
+  updated_at: string
+}
+
+function rowToAppTag(row: RawAppTagRow): AppTag {
+  return {
+    id: row.id,
+    targetType: row.target_type as TagTargetType,
+    targetKey: row.target_key,
+    tag: row.tag as TagType,
+    updatedAt: row.updated_at
   }
 }
 
