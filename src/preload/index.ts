@@ -49,6 +49,11 @@ const api = {
   },
   apps: {
     getIcon: (appName: string, bundleId?: string) => ipcRenderer.invoke(IPC_CHANNELS.APPS_GET_ICON, appName, bundleId)
+  },
+  tags: {
+    getAll: () => ipcRenderer.invoke(IPC_CHANNELS.TAGS_GET_ALL),
+    set: (targetType: string, targetKey: string, tag: string) => ipcRenderer.invoke(IPC_CHANNELS.TAGS_SET, targetType, targetKey, tag),
+    delete: (targetType: string, targetKey: string) => ipcRenderer.invoke(IPC_CHANNELS.TAGS_DELETE, targetType, targetKey)
   }
 }
 

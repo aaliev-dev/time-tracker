@@ -6,7 +6,7 @@ import type { DatabaseManager } from './database'
 import type { TrackingEngine } from './tracking-engine'
 import type { AFKDetector } from './afk-detector'
 import { getAppIcon } from './app-icons'
-import { IPC_CHANNELS, type Category, type CategoryRule } from './types'
+import { IPC_CHANNELS, type Category, type CategoryRule, type TagTargetType, type TagType } from './types'
 
 /**
  * Регистрирует все IPC handlers.
@@ -234,6 +234,26 @@ export function registerIpcHandlers(db: DatabaseManager, tracker: TrackingEngine
     IPC_CHANNELS.APPS_GET_ICON,
     async (_event, appName: string, bundleId?: string) => {
       return getAppIcon(appName, bundleId)
+    }
+  )
+
+  // ─── App Tags (manual work/neutral/distracting) ────────────────
+
+  ipcMain.handle(IPC_CHANNELS.TAGS_GET_ALL, () => {
+    return db.getAllAppTags()
+  })
+
+  ipcMain.handle(
+    IPC_CHANNELS.TAGS_SET,
+    (_event, targetType: TagTargetType, targetKey: string, tag: TagType) => {
+      return db.setAppTag(targetType, targetKey, tag)
+    }
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.TAGS_DELETE,
+    (_event, targetType: TagTargetType, targetKey: string) => {
+      db.deleteAppTag(targetType, targetKey)
     }
   )
 }

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **App/domain tags** — manual tagging of apps and websites as work (работа), neutral (нейтральное), or distracting (отвлечение). Three-dots dropdown menu on each app row and browser domain in Timeline. Tag badges displayed inline. Tags persist in DB (`app_tags` table, migration 004). New IPC channels: `tags:getAll`, `tags:set`, `tags:delete`. Preload exposes `window.api.tags`
 - Initial project setup: Electron + React + TypeScript + SQLite
 - Project documentation: PRD, SDD, AGENTS.md, copilot-instructions
 - Git repository initialized

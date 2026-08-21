@@ -54,6 +54,21 @@ export interface WindowEntry {
   totalTime: number // seconds
 }
 
+/** Ручная метка приложения или домена */
+export type TagType = 'work' | 'neutral' | 'distracting'
+
+/** Тип цели тегирования — приложение или домен сайта */
+export type TagTargetType = 'app' | 'domain'
+
+/** Запись тега в БД */
+export interface AppTag {
+  id: number
+  targetType: TagTargetType
+  targetKey: string // app name or domain
+  tag: TagType
+  updatedAt: string
+}
+
 /** Детальная сводка за день: appName с разбивкой по окнам/вкладкам */
 export interface DetailedDaySummary {
   appName: string
@@ -111,7 +126,10 @@ export const IPC_CHANNELS = {
   TRACKING_RESUME: 'tracking:resume',
   EXPORT_CSV: 'export:csv',
   EXPORT_JSON: 'export:json',
-  APPS_GET_ICON: 'apps:getIcon'
+  APPS_GET_ICON: 'apps:getIcon',
+  TAGS_GET_ALL: 'tags:getAll',
+  TAGS_SET: 'tags:set',
+  TAGS_DELETE: 'tags:delete'
 } as const
 
 export type IpcChannel = typeof IPC_CHANNELS[keyof typeof IPC_CHANNELS]
@@ -156,5 +174,10 @@ export interface TimeTrackerApi {
   }
   apps: {
     getIcon: (appName: string, bundleId?: string) => Promise<string | null>
+  }
+  tags: {
+    getAll: () => Promise<AppTag[]>
+    set: (targetType: TagTargetType, targetKey: string, tag: TagType) => Promise<AppTag>
+    delete: (targetType: TagTargetType, targetKey: string) => Promise<void>
   }
 }

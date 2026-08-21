@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, Component, type ReactNode } from 'react'
-import { Clock, Activity, BarChart3, Settings as SettingsIcon, ChevronRight, List } from 'lucide-react'
-import type { CurrentActivity, DetailedDaySummary, WindowEntry } from '../../main/types'
+import { Clock, Activity, BarChart3, Settings as SettingsIcon, ChevronRight, List, MoreVertical } from 'lucide-react'
+import type { CurrentActivity, DetailedDaySummary, WindowEntry, AppTag, TagType, TagTargetType } from '../../main/types'
 import { formatDuration, formatLocalDate } from './lib/format'
 import StatsView from './pages/StatsView'
 import SettingsView from './pages/SettingsView'
@@ -189,6 +189,7 @@ function DaySummaryView({
   onDateChange: (date: string) => void
 }): JSX.Element {
   const totalActive = summary.reduce((sum, s) => sum + s.totalTime, 0)
+  const { tags, setTag, deleteTag } = useAppTags()
 
   // Date navigation
   const shiftDate = (days: number): void => {
@@ -241,7 +242,14 @@ function DaySummaryView({
         ) : (
           <div className="space-y-2">
             {summary.map((item, idx) => (
-              <AppRow key={`${item.appName}-${idx}`} item={item} maxTime={summary[0]?.totalTime ?? 1} />
+              <AppRow
+                key={`${item.appName}-${idx}`}
+                item={item}
+                maxTime={summary[0]?.totalTime ?? 1}
+                tags={tags}
+                onSetTag={setTag}
+                onDeleteTag={deleteTag}
+              />
             ))}
           </div>
         )}
@@ -349,19 +357,175 @@ function AppIcon({ appName, bundleId }: { appName: string; bundleId?: string | n
   )
 }
 
+// ─── Tags (work / neutral / distracting) ────────────────────────
+
+/** Конфиг тегов: цвет, label, цвет фона для badge */
+const TAG_CONFIG: Record<TagType, { label: string; color: string; bg: string }> = {
+  work: { label: 'Работа', color: '#9ece6a', bg: '#9ece6a22' },
+  neutral: { label: 'Нейтр.', color: '#7aa2f7', bg: '#7aa2f722' },
+  distracting: { label: 'Отвлечение', color: '#f7768e', bg: '#f7768e22' }
+}
+
+/** Загружает все теги и предоставляет set/delete с обновлением локального state */
+function useAppTags(): {
+  tags: Map<string, TagType>
+  setTag: (targetType: TagTargetType, targetKey: string, tag: TagType) => Promise<void>
+  deleteTag: (targetType: TagTargetType, targetKey: string) => Promise<void>
+} {
+  const [tagList, setTagList] = useState<AppTag[]>([])
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    window.api.tags.getAll().then((tags) => {
+      if (mountedRef.current) setTagList(tags)
+    })
+    return () => { mountedRef.current = false }
+  }, [])
+
+  // Строим Map: "app:Visual Studio Code" → "work"
+  const tags = new Map<string, TagType>()
+  for (const t of tagList) {
+    tags.set(`${t.targetType}:${t.targetKey}`, t.tag)
+  }
+
+  const setTag = useCallback(async (targetType: TagTargetType, targetKey: string, tag: TagType) => {
+    // Оптимистичное обновление
+    setTagList((prev) => {
+      const filtered = prev.filter((t) => !(t.targetType === targetType && t.targetKey === targetKey))
+      return [...filtered, {
+        id: 0,
+        targetType,
+        targetKey,
+        tag,
+        updatedAt: new Date().toISOString()
+      }]
+    })
+    await window.api.tags.set(targetType, targetKey, tag)
+  }, [])
+
+  const deleteTag = useCallback(async (targetType: TagTargetType, targetKey: string) => {
+    setTagList((prev) => prev.filter((t) => !(t.targetType === targetType && t.targetKey === targetKey)))
+    await window.api.tags.delete(targetType, targetKey)
+  }, [])
+
+  return { tags, setTag, deleteTag }
+}
+
+/** Маленький цветной badge с названием тега */
+function TagBadge({ tag }: { tag: TagType }): JSX.Element {
+  const config = TAG_CONFIG[tag]
+  return (
+    <span
+      className="rounded px-1.5 py-0.5 text-[10px] font-medium"
+      style={{ color: config.color, backgroundColor: config.bg }}
+    >
+      {config.label}
+    </span>
+  )
+}
+
+/** Выпадающее меню «три точки» для выбора тега */
+function TagMenu({
+  currentTag,
+  onSelect,
+  onClear
+}: {
+  currentTag: TagType | undefined
+  onSelect: (tag: TagType) => void
+  onClear: () => void
+}): JSX.Element {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent): void => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          setOpen(!open)
+        }}
+        className="rounded p-1 text-tt-muted hover:bg-tt-bg hover:text-tt-text"
+        title="Установить тег"
+      >
+        <MoreVertical size={14} />
+      </button>
+      {open && (
+        <div
+          className="absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-lg border border-tt-border bg-tt-surface py-1 shadow-lg"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {(Object.keys(TAG_CONFIG) as TagType[]).map((tagType) => {
+            const config = TAG_CONFIG[tagType]
+            const isActive = currentTag === tagType
+            return (
+              <button
+                key={tagType}
+                onClick={() => {
+                  onSelect(tagType)
+                  setOpen(false)
+                }}
+                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-tt-bg ${isActive ? 'text-tt-text' : 'text-tt-muted'}`}
+              >
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: config.color }} />
+                {config.label}
+                {isActive && <span className="ml-auto text-tt-accent">✓</span>}
+              </button>
+            )
+          })}
+          {currentTag && (
+            <>
+              <div className="my-1 border-t border-tt-border" />
+              <button
+                onClick={() => {
+                  onClear()
+                  setOpen(false)
+                }}
+                className="flex w-full px-3 py-1.5 text-left text-xs text-tt-muted hover:bg-tt-bg"
+              >
+                Снять тег
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Single App Row ────────────────────────────────────────────
 
-function AppRow({ item, maxTime }: { item: DetailedDaySummary; maxTime: number }): JSX.Element {
+interface AppRowProps {
+  item: DetailedDaySummary
+  maxTime: number
+  tags: Map<string, TagType>
+  onSetTag: (targetType: TagTargetType, targetKey: string, tag: TagType) => Promise<void>
+  onDeleteTag: (targetType: TagTargetType, targetKey: string) => Promise<void>
+}
+
+function AppRow({ item, maxTime, tags, onSetTag, onDeleteTag }: AppRowProps): JSX.Element {
   const [expanded, setExpanded] = useState(false)
   const barWidth = (item.totalTime / maxTime) * 100
   const browser = isBrowser(item.appName)
   const hasDetail = browser
     ? groupByDomain(item.windows).length > 1
     : item.windows.length > 1
+  const appTag = tags.get(`app:${item.appName}`)
 
   return (
     <div className="rounded-lg border border-tt-border bg-tt-surface">
-      <button
+      <div
         onClick={() => hasDetail && setExpanded(!expanded)}
         className={`flex w-full items-center gap-2 p-3 text-left ${hasDetail ? 'cursor-pointer hover:bg-tt-bg/50' : 'cursor-default'}`}
       >
@@ -382,8 +546,9 @@ function AppRow({ item, maxTime }: { item: DetailedDaySummary; maxTime: number }
             className="absolute inset-y-0 left-0 rounded bg-tt-accent/35"
             style={{ width: `${barWidth}%` }}
           />
-          <div className="relative flex h-full items-center px-3">
+          <div className="relative flex h-full items-center gap-2 px-3">
             <span className="text-sm font-medium">{item.appName}</span>
+            {appTag && <TagBadge tag={appTag} />}
           </div>
         </div>
         {/* Time */}
@@ -394,12 +559,23 @@ function AppRow({ item, maxTime }: { item: DetailedDaySummary; maxTime: number }
         <div className="w-12 text-right text-xs text-tt-muted">
           {item.percentage.toFixed(0)}%
         </div>
-      </button>
+        {/* Tag menu (three dots) */}
+        <TagMenu
+          currentTag={appTag}
+          onSelect={(tag) => onSetTag('app', item.appName, tag)}
+          onClear={() => onDeleteTag('app', item.appName)}
+        />
+      </div>
 
       {/* Expanded: browser → domains with tabs; other apps → windows */}
       {expanded && hasDetail && (
         browser ? (
-          <BrowserDetail windows={item.windows} />
+          <BrowserDetail
+            windows={item.windows}
+            tags={tags}
+            onSetTag={onSetTag}
+            onDeleteTag={onDeleteTag}
+          />
         ) : (
           <div className="border-t border-tt-border px-3 pb-2 pt-1">
             {item.windows.map((win, idx) => (
@@ -416,8 +592,15 @@ function AppRow({ item, maxTime }: { item: DetailedDaySummary; maxTime: number }
   )
 }
 
+interface BrowserDetailProps {
+  windows: WindowEntry[]
+  tags: Map<string, TagType>
+  onSetTag: (targetType: TagTargetType, targetKey: string, tag: TagType) => Promise<void>
+  onDeleteTag: (targetType: TagTargetType, targetKey: string) => Promise<void>
+}
+
 /** Browser detail: domains with drill-down to individual tabs */
-function BrowserDetail({ windows }: { windows: WindowEntry[] }): JSX.Element {
+function BrowserDetail({ windows, tags, onSetTag, onDeleteTag }: BrowserDetailProps): JSX.Element {
   const groups = groupByDomain(windows)
   const [expandedDomain, setExpandedDomain] = useState<string | null>(null)
 
@@ -426,10 +609,11 @@ function BrowserDetail({ windows }: { windows: WindowEntry[] }): JSX.Element {
       {groups.map((group) => {
         const showTabs = expandedDomain === group.domain
         const multiTabs = group.tabs.length > 1
+        const domainTag = tags.get(`domain:${group.domain}`)
 
         return (
           <div key={group.domain} className="py-1 pl-12">
-            <button
+            <div
               onClick={() => multiTabs && setExpandedDomain(showTabs ? null : group.domain)}
               className={`flex w-full items-center gap-1.5 text-left ${multiTabs ? 'cursor-pointer' : 'cursor-default'}`}
             >
@@ -441,9 +625,15 @@ function BrowserDetail({ windows }: { windows: WindowEntry[] }): JSX.Element {
               )}
               {!multiTabs && <div className="w-3" />}
               <span className="flex-1 truncate text-xs font-medium text-tt-text/80">{group.domain}</span>
+              {domainTag && <TagBadge tag={domainTag} />}
               <span className="w-20 text-right text-xs text-tt-muted">{formatDuration(group.totalTime)}</span>
               <div className="w-12" />
-            </button>
+              <TagMenu
+                currentTag={domainTag}
+                onSelect={(tag) => onSetTag('domain', group.domain, tag)}
+                onClear={() => onDeleteTag('domain', group.domain)}
+              />
+            </div>
 
             {showTabs && multiTabs && (
               <div className="mt-0.5 ml-4 space-y-0.5 border-l border-tt-border/50 pl-3">
