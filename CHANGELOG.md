@@ -109,3 +109,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **`APPS_GET_ICON` IPC** — new `apps:getIcon` channel + preload `apps.getIcon()` method
   - **Browser domain grouping** — for browser apps (Chrome, Safari, Firefox, Arc, Edge, etc.), Timeline groups by domain (figma.com, jira.com) instead of window titles; `BrowserDetail` component with drill-down to individual tabs
   - **Same tabs merged** — SQL already groups by `app_name, window_title, url`; domain grouping further merges tabs from same site
+
+### Fixed
+- **Icon visibility (JPEG→PNG)** — macOS app icons have transparent backgrounds; JPEG format doesn't support alpha channel, making icons invisible (black on dark theme `#16161e`). Changed `toJPEG()` → `toPNG()` in `app-icons.ts`
+- **Domain text centering** — `<button>` elements have `text-align: center` by default (UA stylesheet); `BrowserDetail` domain spans with `flex-1` inherited this, causing domain names to appear visually centered. Added `text-left` to AppRow and BrowserDetail buttons
