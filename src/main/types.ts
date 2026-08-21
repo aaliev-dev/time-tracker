@@ -56,7 +56,9 @@ export interface WindowEntry {
 
 /** Детальная сводка за день: appName с разбивкой по окнам/вкладкам */
 export interface DetailedDaySummary {
-  appName: string  appBundleId?: string | null  totalTime: number // seconds
+  appName: string
+  appBundleId?: string | null
+  totalTime: number // seconds
   percentage: number
   categoryId?: number | null
   categoryName?: string
