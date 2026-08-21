@@ -14,7 +14,7 @@ import {
   ReferenceLine,
   CartesianGrid
 } from 'recharts'
-import type { DailyStat, DaySummary, ProductivityStat, HeatmapCell } from '../../../main/types'
+import type { DailyStat, DaySummary, ProductivityStat, HeatmapCell, TagStat } from '../../../main/types'
 import { formatDuration, formatShort } from '../lib/format'
 
 const PIE_COLORS = [
@@ -35,12 +35,13 @@ export default function StatsView(): JSX.Element {
   const [topApps, setTopApps] = useState<DaySummary[]>([])
   const [productivity, setProductivity] = useState<ProductivityStat[]>([])
   const [heatmap, setHeatmap] = useState<HeatmapCell[]>([])
+  const [tagStats, setTagStats] = useState<TagStat[]>([])
   const [range, setRange] = useState(7)
   const [loading, setLoading] = useState(true)
 
   const loadData = useCallback(async () => {
     setLoading(true)
-    const [daily, top, prod, heat] = await Promise.all([
+    const [daily, top, prod, heat, tags] = await Promise.all([
       window.api.stats.getDaily(range),
       window.api.stats.getTopApps(
         getFromDate(range),
@@ -48,12 +49,14 @@ export default function StatsView(): JSX.Element {
         10
       ),
       window.api.stats.getProductivity(range),
-      window.api.stats.getHeatmap(getFromDate(range), getTodayDate())
+      window.api.stats.getHeatmap(getFromDate(range), getTodayDate()),
+      window.api.stats.getTagStats(getFromDate(range), getTodayDate())
     ])
     setDailyStats(daily as DailyStat[])
     setTopApps(top as DaySummary[])
     setProductivity(prod as ProductivityStat[])
     setHeatmap(heat as HeatmapCell[])
+    setTagStats(tags as TagStat[])
     setLoading(false)
   }, [range])
 
@@ -199,6 +202,9 @@ export default function StatsView(): JSX.Element {
               </div>
             )}
           </div>
+
+          {/* Tag distribution chart */}
+          <TagDistributionSection tagStats={tagStats} />
 
           {/* Summary stats */}
           <div className="grid grid-cols-3 gap-4">
@@ -477,6 +483,80 @@ function ProductivitySection({
             />
           </LineChart>
         </ResponsiveContainer>
+      </div>
+    </div>
+  )
+}
+
+// ─── Tag distribution ───────────────────────────────────────────
+
+const TAG_COLORS: Record<string, string> = {
+  work: '#9ece6a',
+  neutral: '#7aa2f7',
+  distracting: '#f7768e',
+  untagged: '#414868'
+}
+
+const TAG_LABELS: Record<string, string> = {
+  work: 'Работа',
+  neutral: 'Нейтральное',
+  distracting: 'Отвлечение',
+  untagged: 'Без тега'
+}
+
+function TagDistributionSection({ tagStats }: { tagStats: TagStat[] }): JSX.Element {
+  const total = tagStats.reduce((s, t) => s + t.seconds, 0)
+  if (total === 0) return <></>
+
+  // Only show segments with time > 0
+  const pieData = tagStats
+    .filter((t) => t.seconds > 0)
+    .map((t) => ({ name: TAG_LABELS[t.tag] ?? t.tag, value: t.seconds, tag: t.tag }))
+
+  return (
+    <div className="rounded-lg border border-tt-border bg-tt-surface p-4">
+      <h2 className="mb-4 text-sm font-medium text-tt-muted">Time by tag</h2>
+      <div className="flex items-center gap-6">
+        <ResponsiveContainer width="50%" height={220}>
+          <PieChart>
+            <Pie
+              data={pieData}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              outerRadius={85}
+              innerRadius={35}
+            >
+              {pieData.map((entry, idx) => (
+                <Cell key={idx} fill={TAG_COLORS[entry.tag] ?? '#414868'} />
+              ))}
+            </Pie>
+            <Tooltip
+              contentStyle={{
+                backgroundColor: '#1a1b26',
+                border: '1px solid #414868',
+                borderRadius: '8px'
+              }}
+              formatter={(value: number) => [formatDuration(value), '']}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="flex-1 space-y-2">
+          {tagStats.map((t) => (
+            <div key={t.tag} className="flex items-center gap-2 text-sm">
+              <span
+                className="h-3 w-3 rounded-sm"
+                style={{ backgroundColor: TAG_COLORS[t.tag] ?? '#414868' }}
+              />
+              <span className="flex-1">{TAG_LABELS[t.tag] ?? t.tag}</span>
+              <span className="text-tt-muted">{formatDuration(t.seconds)}</span>
+              <span className="w-10 text-right text-xs text-tt-muted">
+                {total > 0 ? ((t.seconds / total) * 100).toFixed(0) : 0}%
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )

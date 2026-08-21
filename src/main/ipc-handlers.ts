@@ -53,6 +53,11 @@ export function registerIpcHandlers(db: DatabaseManager, tracker: TrackingEngine
     return db.getDaySummaryDetailed(date)
   })
 
+  ipcMain.handle(IPC_CHANNELS.ACTIVITIES_GET_AFK_TIME, (_event, date: string) => {
+    validateDate(date)
+    return db.getAfkTimeForDay(date)
+  })
+
   // ─── Categories ───────────────────────────────────────────
 
   ipcMain.handle(IPC_CHANNELS.CATEGORIES_GET_ALL, () => {
@@ -226,6 +231,12 @@ export function registerIpcHandlers(db: DatabaseManager, tracker: TrackingEngine
     validateDate(from)
     validateDate(to)
     return db.getHeatmap(from, to)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.STATS_GET_TAG_STATS, (_event, from: string, to: string) => {
+    validateDate(from)
+    validateDate(to)
+    return db.getTagStats(from, to)
   })
 
   // ─── App icons ───────────────────────────────────────────────

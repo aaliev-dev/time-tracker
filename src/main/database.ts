@@ -2,7 +2,7 @@ import Database from 'better-sqlite3'
 import { readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
-import type { ActivityEvent, Category, CategoryRule, DaySummary, DailyStat, ProductivityStat, HeatmapCell, DetailedDaySummary, AppTag, TagTargetType, TagType } from './types'
+import type { ActivityEvent, Category, CategoryRule, DaySummary, DailyStat, ProductivityStat, HeatmapCell, DetailedDaySummary, AppTag, TagTargetType, TagType, TagStat } from './types'
 
 /**
  * Database — обёртка над better-sqlite3.
@@ -352,6 +352,85 @@ export class DatabaseManager {
     }
 
     return cells
+  }
+
+  /**
+   * Возвращает суммарное время AFK (бездействия) за день.
+   */
+  getAfkTimeForDay(date: string): number {
+    const { start, end } = localDayBounds(date)
+    const row = this.db
+      .prepare(`
+        SELECT COALESCE(SUM(duration), 0) AS totalAfk
+        FROM events
+        WHERE ts_start >= ? AND ts_start <= ? AND is_afk = 1
+      `)
+      .get(start, end) as { totalAfk: number }
+    return row.totalAfk ?? 0
+  }
+
+  /**
+   * Возвращает распределение времени по тегам (work/neutral/distracting/untagged)
+   * за период. Соединяет events с app_tags по appName (для type='app')
+   * и по домену URL (для type='domain').
+   */
+  getTagStats(fromDate: string, toDate: string): TagStat[] {
+    const { start } = localDayBounds(fromDate)
+    const { end: endBound } = localDayBounds(toDate)
+
+    // Получаем все события (не-AFK) за период
+    const rows = this.db
+      .prepare(`
+        SELECT app_name, url, duration
+        FROM events
+        WHERE ts_start >= ? AND ts_start <= ? AND is_afk = 0
+      `)
+      .all(start, endBound) as { app_name: string; url: string | null; duration: number }[]
+
+    // Получаем все теги
+    const tags = this.getAllAppTags()
+
+    // Строим lookup-мапы
+    const appTagMap = new Map<string, TagType>()
+    const domainTagMap = new Map<string, TagType>()
+    for (const t of tags) {
+      if (t.targetType === 'app') appTagMap.set(t.targetKey, t.tag)
+      else domainTagMap.set(t.targetKey, t.tag)
+    }
+
+    // Агрегируем
+    const result: Record<string, number> = {
+      work: 0,
+      neutral: 0,
+      distracting: 0,
+      untagged: 0
+    }
+
+    for (const row of rows) {
+      let tag: TagType | 'untagged' = 'untagged'
+
+      // Сначала проверяем тег приложения
+      const appTag = appTagMap.get(row.app_name)
+      if (appTag) {
+        tag = appTag
+      } else if (row.url) {
+        // Если нет тега приложения — проверяем тег домена
+        const domain = extractDomainFromUrl(row.url)
+        if (domain) {
+          const domainTag = domainTagMap.get(domain)
+          if (domainTag) tag = domainTag
+        }
+      }
+
+      result[tag] = (result[tag] ?? 0) + row.duration
+    }
+
+    return [
+      { tag: 'work', seconds: result.work },
+      { tag: 'neutral', seconds: result.neutral },
+      { tag: 'distracting', seconds: result.distracting },
+      { tag: 'untagged', seconds: result.untagged }
+    ]
   }
 
   /**
@@ -769,4 +848,20 @@ export function formatLocalDate(d: Date): string {
   const month = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+/**
+ * Извлекает домен из URL (без www.).
+ * Используется для сопоставления событий с доменными тегами.
+ */
+function extractDomainFromUrl(url: string): string | null {
+  if (!url) return null
+  try {
+    const u = new URL(url)
+    return u.hostname.replace(/^www\./, '')
+  } catch {
+    // Не валидный URL — попробуем найти домен вручную
+    const match = url.match(/(?:https?:\/\/)?(?:www\.)?([a-z0-9][a-z0-9.-]+\.[a-z]{2,})/i)
+    return match ? match[1] : null
+  }
 }
