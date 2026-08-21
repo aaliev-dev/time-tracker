@@ -4,7 +4,7 @@ import type { Category, CategoryRule } from '../../../main/types'
 
 export default function SettingsView(): JSX.Element {
   const [autostart, setAutostart] = useState(false)
-  const [idleThreshold, setIdleThreshold] = useState(180)
+  const [idleThreshold, setIdleThreshold] = useState(60)
   const [excludedApps, setExcludedApps] = useState<string[]>([])
   const [newApp, setNewApp] = useState('')
   const [categories, setCategories] = useState<Category[]>([])
@@ -21,7 +21,7 @@ export default function SettingsView(): JSX.Element {
       window.api.rules.getAll()
     ]).then(([auto, idle, excluded, cats, rls]) => {
       setAutostart(auto === true || auto === 'true')
-      setIdleThreshold(typeof idle === 'number' ? idle : parseInt(String(idle ?? '180')) || 180)
+      setIdleThreshold(typeof idle === 'number' ? idle : parseInt(String(idle ?? '60')) || 60)
       setExcludedApps(Array.isArray(excluded) ? excluded : [])
       setCategories(cats as Category[])
       setRules(rls as CategoryRule[])

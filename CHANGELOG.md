@@ -98,3 +98,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Recharts grid lines** — made CartesianGrid more visible: `#2a2e44` → `#334155`
   - **Recharts reference line** — productivity trend 50-point reference line: `#565f89` → `#737aa2` for better visibility
   - **"Today" badge** — normalized opacity across Timeline and Log views (was /20 in one, /30 in other → both /25), added font-medium for readability
+- **Phase 14: AFK tracking improvements**
+  - **Threshold 180→60s** — AFK detector now triggers after 1 minute of no keyboard/mouse activity (was 3 minutes)
+  - **AFK category** — migration `003_afk_category.sql` adds "AFK" category; AFK events now have `categoryId` linked to it (were `null` before, invisible in stats)
+  - **Dynamic threshold** — idle threshold loaded from DB settings at startup; `setIdleThreshold()` method on AFKDetector; IPC settings handler updates threshold live when slider changes
+  - **`getCategoryByName()`** — new public DB method to look up category by name (used by TrackingEngine for AFK category)
