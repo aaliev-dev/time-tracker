@@ -190,6 +190,13 @@ function DaySummaryView({
 }): JSX.Element {
   const totalActive = summary.reduce((sum, s) => sum + s.totalTime, 0)
   const { tags, setTag, deleteTag } = useAppTags()
+  const [afkTime, setAfkTime] = useState(0)
+
+  useEffect(() => {
+    window.api.activities.getAfkTime(selectedDate).then((secs: number) => {
+      setAfkTime(secs)
+    })
+  }, [selectedDate])
 
   // Date navigation
   const shiftDate = (days: number): void => {
@@ -254,6 +261,35 @@ function DaySummaryView({
           </div>
         )}
       </div>
+
+      {/* AFK time */}
+      {afkTime > 0 && (
+        <div>
+          <h2 className="mb-3 text-sm font-medium text-tt-muted">
+            Away from keyboard
+          </h2>
+          <div className="flex items-center gap-4 rounded-lg border border-tt-border bg-tt-surface/50 p-4">
+            <div
+              className="flex h-10 w-10 items-center justify-center rounded-lg text-lg"
+              style={{ backgroundColor: '#414868' }}
+            >
+              😴
+            </div>
+            <div className="flex-1">
+              <div className="text-sm text-tt-muted">Total AFK time</div>
+              <div className="text-xl font-semibold text-tt-muted">
+                {formatDuration(afkTime)}
+              </div>
+            </div>
+            <div className="text-right text-xs text-tt-muted">
+              {afkTime > 60
+                ? `${Math.round(afkTime / 60)} min`
+                : `${Math.round(afkTime)} sec`}
+              {' inactive'}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

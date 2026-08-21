@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **App/domain tags** — manual tagging of apps and websites as work (работа), neutral (нейтральное), or distracting (отвлечение). Three-dots dropdown menu on each app row and browser domain in Timeline. Tag badges displayed inline. Tags persist in DB (`app_tags` table, migration 004). New IPC channels: `tags:getAll`, `tags:set`, `tags:delete`. Preload exposes `window.api.tags`
+- **AFK time display in Timeline** — shows total away-from-keyboard time per day below the app list. New IPC channel `activities:getAfkTime`. Preload exposes `window.api.activities.getAfkTime`
+- **Tag distribution chart in Statistics** — pie chart showing time breakdown by tag (work/neutral/distracting/untagged) for the selected range. New IPC channel `stats:getTagStats`. Preload exposes `window.api.stats.getTagStats`
+
+### Fixed
+- **Race condition: real events created during AFK** — `poll()` checked `isAfk` at the top, but `await activeWin()` is async. During that await, AFK could start and close the current event. When `poll()` resumed, it created a new real event **during** AFK, causing overlapping time periods (e.g. 27h/day). Fix: re-check `isAfk` after `await activeWin()` returns. Migration `005` cleans up historical overlapping data (deletes phantom events, trims partial overlaps)
 - Initial project setup: Electron + React + TypeScript + SQLite
 - Project documentation: PRD, SDD, AGENTS.md, copilot-instructions
 - Git repository initialized

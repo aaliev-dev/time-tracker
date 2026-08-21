@@ -21,13 +21,15 @@ const api = {
     getDay: (date: string) => ipcRenderer.invoke(IPC_CHANNELS.ACTIVITIES_GET_DAY, date),
     getRange: (from: string, to: string) => ipcRenderer.invoke(IPC_CHANNELS.ACTIVITIES_GET_RANGE, from, to),
     getSummary: (date: string) => ipcRenderer.invoke(IPC_CHANNELS.ACTIVITIES_GET_SUMMARY, date),
-    getSummaryDetailed: (date: string) => ipcRenderer.invoke(IPC_CHANNELS.ACTIVITIES_GET_SUMMARY_DETAILED, date)
+    getSummaryDetailed: (date: string) => ipcRenderer.invoke(IPC_CHANNELS.ACTIVITIES_GET_SUMMARY_DETAILED, date),
+    getAfkTime: (date: string) => ipcRenderer.invoke(IPC_CHANNELS.ACTIVITIES_GET_AFK_TIME, date)
   },
   stats: {
     getDaily: (days: number) => ipcRenderer.invoke(IPC_CHANNELS.STATS_GET_DAILY, days),
     getTopApps: (from: string, to: string, limit?: number) => ipcRenderer.invoke(IPC_CHANNELS.STATS_GET_TOP_APPS, from, to, limit),
     getProductivity: (days: number) => ipcRenderer.invoke(IPC_CHANNELS.STATS_GET_PRODUCTIVITY, days),
-    getHeatmap: (from: string, to: string) => ipcRenderer.invoke(IPC_CHANNELS.STATS_GET_HEATMAP, from, to)
+    getHeatmap: (from: string, to: string) => ipcRenderer.invoke(IPC_CHANNELS.STATS_GET_HEATMAP, from, to),
+    getTagStats: (from: string, to: string) => ipcRenderer.invoke(IPC_CHANNELS.STATS_GET_TAG_STATS, from, to)
   },
   categories: {
     getAll: () => ipcRenderer.invoke(IPC_CHANNELS.CATEGORIES_GET_ALL),

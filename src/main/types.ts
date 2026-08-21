@@ -69,6 +69,12 @@ export interface AppTag {
   updatedAt: string
 }
 
+/** Статистика времени по тегам за период */
+export interface TagStat {
+  tag: TagType | 'untagged'
+  seconds: number
+}
+
 /** Детальная сводка за день: appName с разбивкой по окнам/вкладкам */
 export interface DetailedDaySummary {
   appName: string
@@ -113,6 +119,8 @@ export const IPC_CHANNELS = {
   STATS_GET_TOP_APPS: 'stats:getTopApps',
   STATS_GET_PRODUCTIVITY: 'stats:getProductivity',
   STATS_GET_HEATMAP: 'stats:getHeatmap',
+  STATS_GET_TAG_STATS: 'stats:getTagStats',
+  ACTIVITIES_GET_AFK_TIME: 'activities:getAfkTime',
   CATEGORIES_GET_ALL: 'categories:getAll',
   CATEGORIES_UPSERT: 'categories:upsert',
   CATEGORIES_DELETE: 'categories:delete',
@@ -147,12 +155,14 @@ export interface TimeTrackerApi {
     getRange: (from: string, to: string) => Promise<ActivityEvent[]>
     getSummary: (date: string) => Promise<DaySummary[]>
     getSummaryDetailed: (date: string) => Promise<DetailedDaySummary[]>
+    getAfkTime: (date: string) => Promise<number>
   }
   stats: {
     getDaily: (days: number) => Promise<DailyStat[]>
     getTopApps: (from: string, to: string, limit?: number) => Promise<DaySummary[]>
     getProductivity: (days: number) => Promise<ProductivityStat[]>
     getHeatmap: (from: string, to: string) => Promise<HeatmapCell[]>
+    getTagStats: (from: string, to: string) => Promise<TagStat[]>
   }
   categories: {
     getAll: () => Promise<Category[]>

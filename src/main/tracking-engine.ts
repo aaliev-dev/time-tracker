@@ -152,6 +152,11 @@ export class TrackingEngine extends EventEmitter {
       return
     }
 
+    // Re-check after async — AFK/pause may have started during await activeWin().
+    // Without this, poll() creates real events that overlap with AFK events
+    // (race condition: isAfk checked at top, but activeWin is async).
+    if (this.isPaused || this.isAfk) return
+
     if (!win) {
       // Нет активного окна — возможно screen locked или нет дисплея
       return
