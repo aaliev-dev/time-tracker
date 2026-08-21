@@ -363,7 +363,7 @@ function AppRow({ item, maxTime }: { item: DetailedDaySummary; maxTime: number }
     <div className="rounded-lg border border-tt-border bg-tt-surface">
       <button
         onClick={() => hasDetail && setExpanded(!expanded)}
-        className={`flex w-full items-center gap-2 p-3 ${hasDetail ? 'cursor-pointer hover:bg-tt-bg/50' : 'cursor-default'}`}
+        className={`flex w-full items-center gap-2 p-3 text-left ${hasDetail ? 'cursor-pointer hover:bg-tt-bg/50' : 'cursor-default'}`}
       >
         {/* Chevron or spacer */}
         <div className="w-4 shrink-0">
@@ -431,7 +431,7 @@ function BrowserDetail({ windows }: { windows: WindowEntry[] }): JSX.Element {
           <div key={group.domain} className="py-1 pl-12">
             <button
               onClick={() => multiTabs && setExpandedDomain(showTabs ? null : group.domain)}
-              className={`flex w-full items-center gap-1.5 ${multiTabs ? 'cursor-pointer' : 'cursor-default'}`}
+              className={`flex w-full items-center gap-1.5 text-left ${multiTabs ? 'cursor-pointer' : 'cursor-default'}`}
             >
               {multiTabs && (
                 <ChevronRight
