@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tag distribution chart in Statistics** — pie chart showing time breakdown by tag (work/neutral/distracting/untagged) for the selected range. New IPC channel `stats:getTagStats`. Preload exposes `window.api.stats.getTagStats`
 
 ### Fixed
+- **Accessibility permission spam** — `active-win` spawns a native binary using macOS Accessibility API every second in the poll loop. Without permission, macOS showed the system dialog on every call. Fix: check `systemPreferences.isTrustedAccessibilityClient()` before starting the poll loop; show the system prompt ONCE at startup; wait with check-only polling until the user grants permission; guard each `poll()` call
 - **Race condition: real events created during AFK** — `poll()` checked `isAfk` at the top, but `await activeWin()` is async. During that await, AFK could start and close the current event. When `poll()` resumed, it created a new real event **during** AFK, causing overlapping time periods (e.g. 27h/day). Fix: re-check `isAfk` after `await activeWin()` returns. Migration `005` cleans up historical overlapping data (deletes phantom events, trims partial overlaps)
 - Initial project setup: Electron + React + TypeScript + SQLite
 - Project documentation: PRD, SDD, AGENTS.md, copilot-instructions
