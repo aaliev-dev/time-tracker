@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, Tray, Menu, nativeImage } from 'electron'
+import { app, BrowserWindow, shell, Tray, Menu, nativeImage, systemPreferences } from 'electron'
 import { join } from 'path'
 import { DatabaseManager } from './database'
 import { TrackingEngine } from './tracking-engine'
@@ -210,7 +210,33 @@ app.whenReady().then(() => {
 
   // Initialize tracking engine
   tracker = new TrackingEngine(db)
-  tracker.start()
+
+  // ─── Accessibility permission gate ─────────────────────────
+  // On macOS, active-win uses Accessibility API. Without permission,
+  // every poll() spawns a native binary that triggers the system dialog.
+  // We request permission ONCE, then wait until granted before starting.
+  if (process.platform === 'darwin') {
+    const hasPermission = systemPreferences.isTrustedAccessibilityClient(false)
+    if (hasPermission) {
+      log.info('[Main] Accessibility permission already granted — starting tracker')
+      tracker.start()
+    } else {
+      // Show the system dialog exactly ONCE (prompt=true)
+      log.info('[Main] Requesting Accessibility permission (one-time prompt)')
+      systemPreferences.isTrustedAccessibilityClient(true)
+
+      // Poll without prompting — wait for user to grant permission in System Settings
+      const permCheckId = setInterval(() => {
+        if (systemPreferences.isTrustedAccessibilityClient(false)) {
+          log.info('[Main] Accessibility permission granted — starting tracker')
+          tracker?.start()
+          clearInterval(permCheckId)
+        }
+      }, 2000)
+    }
+  } else {
+    tracker.start()
+  }
 
   // Initialize AFK detector — load threshold from DB settings
   const savedThreshold = db.getSetting('idleThreshold')

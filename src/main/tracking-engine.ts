@@ -1,6 +1,6 @@
 import activeWin from 'active-win'
 import { EventEmitter } from 'events'
-import { app } from 'electron'
+import { app, systemPreferences } from 'electron'
 import type { DatabaseManager } from './database'
 import type { CurrentActivity } from './types'
 import { log } from './safe-log'
@@ -41,6 +41,7 @@ export class TrackingEngine extends EventEmitter {
   private isPrivateBrowsing: boolean = false
   private isAfk: boolean = false
   private excludedApps: Set<string> = new Set()
+  private hasAccessibilityPermission: boolean = false
 
   constructor(db: DatabaseManager) {
     super()
@@ -49,9 +50,37 @@ export class TrackingEngine extends EventEmitter {
 
   // ─── Lifecycle ───────────────────────────────────────────────
 
+  /**
+   * Проверяет Accessibility permission (check-only, без системного диалога).
+   * active-win на macOS использует Accessibility API — без разрешения
+   * каждый вызов бинарника может триггерить системный промпт.
+   */
+  private checkAccessibilityPermission(): boolean {
+    if (process.platform !== 'darwin') return true
+    const trusted = systemPreferences.isTrustedAccessibilityClient(false)
+    if (trusted !== this.hasAccessibilityPermission) {
+      this.hasAccessibilityPermission = trusted
+      if (trusted) {
+        log.info('[TrackingEngine] Accessibility permission granted')
+      } else {
+        log.warn('[TrackingEngine] Accessibility permission lost — pausing active-win calls')
+      }
+    }
+    return trusted
+  }
+
   start(): void {
     if (this.intervalId) return
     this.loadExcludedApps()
+
+    // Check Accessibility permission BEFORE starting poll loop.
+    // Without this, every activeWin() call (1/sec) spawns a native binary
+    // that triggers the macOS Accessibility permission dialog — spamming the user.
+    if (!this.checkAccessibilityPermission()) {
+      log.warn('[TrackingEngine] No Accessibility permission — not starting poll loop')
+      return
+    }
+
     log.info('[TrackingEngine] Starting polling every', this.pollIntervalMs, 'ms')
     this.intervalId = setInterval(() => this.poll(), this.pollIntervalMs)
   }
@@ -143,6 +172,11 @@ export class TrackingEngine extends EventEmitter {
 
   private async poll(): Promise<void> {
     if (this.isPaused || this.isAfk) return
+
+    // Guard: skip activeWin() if Accessibility permission was revoked.
+    // Without this, each call spawns a native binary that re-triggers
+    // the macOS permission dialog.
+    if (!this.checkAccessibilityPermission()) return
 
     let win: Awaited<ReturnType<typeof activeWin>>
     try {
