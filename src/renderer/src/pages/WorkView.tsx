@@ -60,16 +60,24 @@ export default function WorkView(): JSX.Element {
   const totalWorkTime = workStats.reduce((s, w) => s + w.seconds, 0)
   const totalTaskTime = taskStats.reduce((s, t) => s + t.seconds, 0)
 
+  // «Остальное» — рабочее время без Jira-ключа (task_key IS NULL)
+  const otherTime = Math.max(0, totalWorkTime - totalTaskTime)
+
   const workBarData = workStats.map((w) => ({
     name: w.targetKey,
     value: w.seconds
   }))
 
-  const taskBarData = taskStats.map((t) => ({
-    name: t.taskKey,
-    value: t.seconds,
-    apps: t.apps.join(', ')
-  }))
+  const taskBarData = [
+    ...taskStats.map((t) => ({
+      name: t.taskKey,
+      value: t.seconds,
+      apps: t.apps.join(', ')
+    })),
+    ...(otherTime > 0
+      ? [{ name: 'Остальное', value: otherTime, color: '#414868' as string | undefined }]
+      : [])
+  ]
 
   return (
     <div className="space-y-6">
@@ -120,14 +128,14 @@ export default function WorkView(): JSX.Element {
           <section className="rounded-lg border border-tt-border bg-tt-surface p-4">
             <div className="mb-4 flex items-baseline justify-between">
               <h2 className="text-sm font-medium text-tt-muted">По задачам</h2>
-              {totalTaskTime > 0 && (
+              {totalWorkTime > 0 && (
                 <span className="text-xs text-tt-muted">
-                  Total: {formatDuration(totalTaskTime)}
+                  Total: {formatDuration(totalWorkTime)}
                 </span>
               )}
             </div>
 
-            {taskStats.length === 0 ? (
+            {taskBarData.length === 0 ? (
               <div className="py-8 text-center text-sm text-tt-muted">
                 Нет данных по задачам.
                 <br />
@@ -137,8 +145,9 @@ export default function WorkView(): JSX.Element {
             ) : (
               <HBarChart
                 data={taskBarData}
-                total={totalTaskTime}
+                total={totalWorkTime}
                 renderLabel={(item) => {
+                  if (item.name === 'Остальное') return 'Остальное — без задачи'
                   const stat = taskStats.find((t) => t.taskKey === item.name)
                   if (!stat) return item.name
                   // Показываем ключ + список приложений (вкладки уже объединены)
@@ -159,6 +168,7 @@ interface BarItem {
   name: string
   value: number
   apps?: string
+  color?: string
 }
 
 function HBarChart({
@@ -195,7 +205,7 @@ function HBarChart({
                 className="h-full rounded transition-all"
                 style={{
                   width: `${barWidth}%`,
-                  backgroundColor: BAR_COLORS[idx % BAR_COLORS.length]
+                  backgroundColor: item.color ?? BAR_COLORS[idx % BAR_COLORS.length]
                 }}
                 title={`${label}\n${formatDuration(item.value)} (${pct}%)`}
               />

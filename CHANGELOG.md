@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **«Остальное» in Tasks section** — Work tab «По задачам» now shows an «Остальное» (Other) bar for work time not tied to any Jira task key. Total for the tasks section now equals total work time instead of only task time
 - **«Сегодня» filter** — range selector in Statistics and Work tabs now includes «Сегодня» (Today) as the default option, showing data for the current day only
 - **Work tab** — new sidebar tab «Работа» showing statistics for apps/sites tagged as 'work' and a breakdown by Jira task keys (ADG-12144, AGDNS-4264, etc.). Task keys are automatically extracted from window titles and URLs (migration 006). New IPC channels: `stats:getWork`, `stats:getTasks`. Preload exposes `window.api.stats.getWork` and `window.api.stats.getTasks`
 - **Code signing** — `scripts/after-pack.cjs` signs the `.app` with a self-signed certificate ("AliSwitcher Code Signing") from the login keychain. macOS TCC (Accessibility permission) tracks by certificate identity, which is stable across rebuilds, so permissions persist across reinstalls and reboots. Falls back to ad-hoc signing if the certificate is unavailable
