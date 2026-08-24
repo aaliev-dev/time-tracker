@@ -18,7 +18,16 @@ export default function LogView({ selectedDate, onDateChange }: {
 }): JSX.Element {
   const [events, setEvents] = useState<ActivityEvent[]>([])
   const [loading, setLoading] = useState(true)
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
+  const [tooltip, setTooltip] = useState<{
+    appName: string
+    color: string
+    tsStart: string
+    tsEnd: string
+    duration: number
+    windowTitle: string | null
+    url: string | null
+    leftPct: number
+  } | null>(null)
 
   const loadEvents = useCallback(async () => {
     setLoading(true)
@@ -112,29 +121,76 @@ export default function LogView({ selectedDate, onDateChange }: {
         <div className="rounded-lg border border-tt-border bg-tt-surface p-4">
           <h2 className="mb-3 text-sm font-medium text-tt-muted">Timeline</h2>
 
-          {/* Timeline bar */}
-          <div className="relative h-12 w-full overflow-hidden rounded bg-tt-bg">
-            {eventBars.map((bar, idx) => (
+          {/* Timeline bar + tooltip overlay */}
+          <div className="relative">
+            {/* Timeline bar */}
+            <div className="relative h-12 w-full overflow-hidden rounded bg-tt-bg">
+              {eventBars.map((bar, idx) => (
+                <div
+                  key={idx}
+                  className="absolute inset-y-0 flex items-center justify-center overflow-hidden transition-opacity"
+                  style={{
+                    left: `${bar.leftPct}%`,
+                    width: `${Math.max(bar.widthPct, 0.3)}%`,
+                    backgroundColor: bar.color,
+                    opacity: tooltip?.appName === bar.event.appName && tooltip?.tsStart === bar.event.tsStart ? 1 : 0.75,
+                  }}
+                  onMouseEnter={() =>
+                    setTooltip({
+                      appName: bar.event.appName,
+                      color: bar.color,
+                      tsStart: bar.event.tsStart,
+                      tsEnd: bar.event.tsEnd,
+                      duration: bar.event.duration,
+                      windowTitle: bar.event.windowTitle,
+                      url: bar.event.url ?? null,
+                      leftPct: bar.leftPct + bar.widthPct / 2
+                    })
+                  }
+                  onMouseLeave={() => setTooltip(null)}
+                >
+                  {bar.widthPct > 4 && (
+                    <span className="truncate px-1 text-xs font-medium text-tt-bg">
+                      {bar.event.appName}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Floating tooltip — absolute, doesn't affect layout */}
+            {tooltip && (
               <div
-                key={idx}
-                className="absolute inset-y-0 flex items-center justify-center overflow-hidden"
+                className="pointer-events-none absolute z-50 max-w-xs rounded-lg border border-tt-border bg-tt-bg p-3 text-sm shadow-2xl"
                 style={{
-                  left: `${bar.leftPct}%`,
-                  width: `${Math.max(bar.widthPct, 0.3)}%`,
-                  backgroundColor: bar.color,
-                  opacity: hoveredIdx === idx ? 1 : 0.75,
+                  left: `${Math.min(Math.max(tooltip.leftPct, 20), 80)}%`,
+                  top: 'calc(100% + 4px)',
+                  transform: 'translateX(-50%)',
                 }}
-                onMouseEnter={() => setHoveredIdx(idx)}
-                onMouseLeave={() => setHoveredIdx(null)}
-                title={`${bar.event.appName} — ${formatTime(bar.event.tsStart)} to ${formatTime(bar.event.tsEnd)} (${formatDuration(bar.event.duration)})`}
               >
-                {bar.widthPct > 4 && (
-                  <span className="truncate px-1 text-xs font-medium text-tt-bg">
-                    {bar.event.appName}
-                  </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className="h-3 w-3 shrink-0 rounded-sm"
+                    style={{ backgroundColor: tooltip.color }}
+                  />
+                  <span className="font-medium">{tooltip.appName}</span>
+                </div>
+                <div className="mt-1 text-xs text-tt-muted">
+                  {formatTime(tooltip.tsStart)} — {formatTime(tooltip.tsEnd)}
+                  <span className="ml-2">({formatDuration(tooltip.duration)})</span>
+                </div>
+                {tooltip.windowTitle && (
+                  <div className="mt-1 truncate text-xs text-tt-muted" title={tooltip.windowTitle}>
+                    {tooltip.windowTitle}
+                  </div>
+                )}
+                {tooltip.url && tooltip.url !== tooltip.windowTitle && (
+                  <div className="mt-0.5 truncate text-xs text-tt-muted" title={tooltip.url}>
+                    {tooltip.url}
+                  </div>
                 )}
               </div>
-            ))}
+            )}
           </div>
 
           {/* Hour markers */}
@@ -149,22 +205,6 @@ export default function LogView({ selectedDate, onDateChange }: {
               </div>
             ))}
           </div>
-
-          {/* Tooltip on hover */}
-          {hoveredIdx !== null && eventBars[hoveredIdx] && (
-            <div className="mt-2 rounded border border-tt-border bg-tt-bg p-2 text-sm">
-              <span className="font-medium" style={{ color: eventBars[hoveredIdx].color }}>
-                ● {eventBars[hoveredIdx].event.appName}
-              </span>
-              <span className="ml-2 text-tt-muted">
-                {formatTime(eventBars[hoveredIdx].event.tsStart)} — {formatTime(eventBars[hoveredIdx].event.tsEnd)}
-              </span>
-              <span className="ml-2 text-tt-muted">({formatDuration(eventBars[hoveredIdx].event.duration)})</span>
-              {eventBars[hoveredIdx].event.windowTitle && (
-                <div className="mt-0.5 text-xs text-tt-muted">{eventBars[hoveredIdx].event.windowTitle}</div>
-              )}
-            </div>
-          )}
         </div>
       )}
 
@@ -191,8 +231,6 @@ export default function LogView({ selectedDate, onDateChange }: {
                     ? 'border-tt-border/50 bg-tt-surface/50 opacity-50'
                     : 'border-tt-border bg-tt-surface'
                 }`}
-                onMouseEnter={() => setHoveredIdx(idx)}
-                onMouseLeave={() => setHoveredIdx(null)}
               >
                 {/* Color dot */}
                 <div
