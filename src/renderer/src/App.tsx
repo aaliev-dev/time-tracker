@@ -95,7 +95,7 @@ function AppInner(): JSX.Element {
   return (
     <div className="flex h-screen bg-tt-bg text-tt-text">
       {/* Sidebar — extra top padding for macOS traffic lights */}
-      <nav className="drag-region flex w-16 flex-col items-center gap-4 border-r border-tt-border bg-tt-surface pt-12 pb-6">
+      <nav className="drag-region flex w-16 flex-col items-center gap-4 border-r border-tt-border bg-tt-surface pt-14 pb-6">
         <button
           className={`no-drag rounded-lg p-3 transition-colors ${view === 'timeline' ? 'bg-tt-accent/30 text-tt-accent' : 'text-tt-muted hover:text-tt-text'}`}
           onClick={() => setView('timeline')}

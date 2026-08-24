@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Google Meet background tracking** — when a Google Meet call is detected (URL `meet.google.com/{code}`), the tracker keeps recording Meet time even when the user switches to other apps. A parallel "Google Meet" background event runs alongside foreground events. Meeting ends after 10-minute timeout without seeing the Meet tab. AFK is suppressed during active meetings (no keyboard/mouse input is normal on calls)
 - **Jira links in Tasks section** — task keys in Work tab «По задачам» are now clickable links opening `jira.int.agrd.dev/browse/{key}` in the default browser. «Остальное» has no link
 - **«Остальное» in Tasks section** — Work tab «По задачам» now shows an «Остальное» (Other) bar for work time not tied to any Jira task key. Total for the tasks section now equals total work time instead of only task time
 - **«Сегодня» filter** — range selector in Statistics and Work tabs now includes «Сегодня» (Today) as the default option, showing data for the current day only
@@ -27,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **localhost domains now show with port** — `extractDomain` functions (renderer + main) now include the port for localhost and IP addresses (e.g., `localhost:3001`, `localhost:8501`, `127.0.0.1:59944`), so different localhost apps are no longer merged into a single `localhost` group in Timeline browser details
 - **Tooltips on all tabs** — native `title` tooltips added to bars in Daily Log (timeline + event list), Work tab (apps + tasks), Statistics (top apps + tag distribution), and Timeline (app bars). Hover any bar to see app name, duration, and percentage
+- **Traffic lights overlapping sidebar** — macOS window buttons (close, minimize, maximize) were encroaching on the sidebar. Switched `titleBarStyle` from `hiddenInset` to `hidden` with explicit `trafficLightPosition: { x: 10, y: 10 }`, and increased sidebar top padding from 48px to 56px
 
 ### Fixed
 - **Accessibility permission spam** — `active-win` spawns a native binary using macOS Accessibility API every second in the poll loop. Without permission, macOS showed the system dialog on every call. Fix: check `systemPreferences.isTrustedAccessibilityClient()` before starting the poll loop; show the system prompt ONCE at startup; wait with check-only polling until the user grants permission; guard each `poll()` call

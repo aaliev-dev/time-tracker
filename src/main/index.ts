@@ -35,7 +35,8 @@ function createWindow(): void {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
-    titleBarStyle: 'hiddenInset',
+    titleBarStyle: 'hidden',
+    trafficLightPosition: { x: 10, y: 10 },
     backgroundColor: '#1a1b26',
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),
@@ -246,6 +247,8 @@ app.whenReady().then(() => {
   const savedThreshold = db.getSetting('idleThreshold')
   const idleThreshold = savedThreshold ? parseInt(savedThreshold) || 60 : 60
   afkDetector = new AFKDetector(idleThreshold)
+  // Suppress AFK during Google Meet calls (user may not touch keyboard/mouse)
+  afkDetector.setExemptCallback(() => tracker?.isMeetingActive() ?? false)
   afkDetector.on('afk-start', () => {
     tracker?.onAfkStart()
   })

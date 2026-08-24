@@ -23,6 +23,9 @@ export class AFKDetector extends EventEmitter {
   private isAfk: boolean = false
   private afkStartedAt: number | null = null // Date.now() когда начался AFK
 
+  /** Callback: returns true if AFK should be suppressed (e.g., Google Meet call) */
+  private exemptCallback?: () => boolean
+
   constructor(idleThresholdSec?: number) {
     super()
     if (idleThresholdSec) {
@@ -30,6 +33,11 @@ export class AFKDetector extends EventEmitter {
     }
 
     this.setupPowerMonitor()
+  }
+
+  /** Set callback that returns true when AFK should be suppressed (e.g. during a meeting) */
+  setExemptCallback(fn: () => boolean): void {
+    this.exemptCallback = fn
   }
 
   /** Обновить порог idle (вызывается при изменении настройки в DB) */
@@ -85,6 +93,12 @@ export class AFKDetector extends EventEmitter {
   // ─── Idle polling ────────────────────────────────────────────
 
   private checkIdle(): void {
+    // Exempt apps (e.g., Google Meet) — never go AFK during a call
+    if (this.exemptCallback?.()) {
+      if (this.isAfk) this.endAfk()
+      return
+    }
+
     const idleSec = powerMonitor.getSystemIdleTime()
 
     if (idleSec >= this.idleThresholdSec) {

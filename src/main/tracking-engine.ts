@@ -8,6 +8,16 @@ import { log } from './safe-log'
 /** Имена процесса трекера (dev='Electron', prod='CarpeDiem') — чтобы не трекать себя */
 const SELF_APP_NAMES = new Set(['Electron', app.getName()])
 
+/** Проверяет, что URL — это активный Google Meet звонок (не главная страница) */
+function isMeetCallUrl(url: string | null): boolean {
+  if (!url) return false
+  const idx = url.indexOf('meet.google.com/')
+  if (idx === -1) return false
+  // Есть что-то после последнего / (код встречи)
+  const after = url.substring(idx + 'meet.google.com/'.length)
+  return after.length > 0
+}
+
 /** Ключевые слова private/incognito в заголовке окна → приватный режим */
 const PRIVATE_KEYWORDS = ['incognito', 'private browsing', 'private window', 'little arc']
 
@@ -42,6 +52,17 @@ export class TrackingEngine extends EventEmitter {
   private isAfk: boolean = false
   private excludedApps: Set<string> = new Set()
   private hasAccessibilityPermission: boolean = false
+
+  // ─── Google Meet background tracking ────────────────────
+  // Когда созвон активен (meet.google.com в foreground),
+  // пользователь часто переключается на другие приложения,
+  // но звонок продолжает идти. Мы отслеживаем параллельный
+  // фоновый event для Meet, чтобы время звонка не терялось.
+  private meetingActive: boolean = false  // идёт ли сейчас созвон
+  private meetingEventId: number | null = null  // ID фонового event
+  private meetingEventStart: number = 0  // Date.now() начала фонового event
+  private meetingLastSeen: number = 0  // Date.now() последнего наблюдения Meet
+  private readonly MEETING_TIMEOUT_MS = 10 * 60 * 1000 // 10 мин без Meet → созвон окончен
 
   constructor(db: DatabaseManager) {
     super()
@@ -90,6 +111,7 @@ export class TrackingEngine extends EventEmitter {
       clearInterval(this.intervalId)
       this.intervalId = null
     }
+    this.closeMeetingEvent()
     this.closeCurrentEvent()
     log.info('[TrackingEngine] Stopped')
   }
@@ -168,6 +190,73 @@ export class TrackingEngine extends EventEmitter {
     log.info(`[TrackingEngine] AFK ended (was away ${afkDuration}s)`)
   }
 
+  /** Идёт ли сейчас Google Meet звонок (foreground или background)? (для AFK suppression) */
+  isMeetingActive(): boolean {
+    return this.meetingActive
+  }
+
+  // ─── Google Meet background tracking ────────────────────────
+
+  private startMeetingEvent(now: number): void {
+    const tsNow = new Date(now).toISOString()
+    this.meetingEventStart = now
+    this.meetingEventId = this.db.insertEvent({
+      tsStart: tsNow,
+      tsEnd: tsNow, // обновится при закрытии
+      duration: 0,
+      appName: 'Google Meet',
+      appBundleId: undefined,
+      windowTitle: 'Meeting (background)',
+      url: 'https://meet.google.com',
+      categoryId: null,
+      isAfk: false,
+      isPrivate: false
+    })
+    log.info('[TrackingEngine] Background meeting event started')
+  }
+
+  private closeMeetingEvent(endTime?: number): void {
+    if (this.meetingEventId === null) return
+    const end = endTime ?? Date.now()
+    const tsEnd = new Date(end).toISOString()
+    const duration = Math.round((end - this.meetingEventStart) / 1000)
+    this.db.closeEvent(this.meetingEventId, tsEnd, duration)
+    this.meetingEventId = null
+    this.meetingEventStart = 0
+    log.info(`[TrackingEngine] Background meeting event closed (duration: ${duration}s)`)
+  }
+
+  /**
+   * Обработка фонового трекинга Google Meet.
+   * Вызывается в poll() после получения activeWin.
+   */
+  private updateMeetingTracking(url: string | null, now: number): void {
+    const isMeet = isMeetCallUrl(url)
+
+    if (isMeet) {
+      // Meet в foreground — закрываем фоновый event (если был),
+      // foreground event запишется обычным путём.
+      if (this.meetingEventId !== null) {
+        this.closeMeetingEvent(now)
+      }
+      this.meetingActive = true
+      this.meetingLastSeen = now
+    } else if (this.meetingActive) {
+      // Meet не в foreground, но созвон может идти
+      if (now - this.meetingLastSeen > this.MEETING_TIMEOUT_MS) {
+        // Созвон окончен (не видели Meet > 10 мин)
+        this.meetingActive = false
+        this.closeMeetingEvent(this.meetingLastSeen)
+        log.info('[TrackingEngine] Meeting ended (timeout)')
+      } else {
+        // Созвон продолжается в фоне — запускаем фоновый event если нужно
+        if (this.meetingEventId === null) {
+          this.startMeetingEvent(now)
+        }
+      }
+    }
+  }
+
   // ─── Core polling ────────────────────────────────────────────
 
   private async poll(): Promise<void> {
@@ -200,6 +289,9 @@ export class TrackingEngine extends EventEmitter {
     const windowTitle = win.title
     const appBundleId = 'bundleId' in win.owner ? (win.owner as { bundleId?: string }).bundleId : undefined
     const url = 'url' in win ? (win as { url?: string }).url ?? null : null
+
+    // Google Meet background tracking — update meeting state before normal tracking
+    this.updateMeetingTracking(url, Date.now())
 
     // Skip self-tracking — don't record events for the tracker's own window
     if (SELF_APP_NAMES.has(appName)) {
