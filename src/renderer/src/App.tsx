@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef, Component, type ReactNode } from 'react'
-import { Clock, Activity, BarChart3, Settings as SettingsIcon, ChevronRight, List, MoreVertical } from 'lucide-react'
+import { Clock, Activity, BarChart3, Settings as SettingsIcon, ChevronRight, List, MoreVertical, Briefcase } from 'lucide-react'
 import type { CurrentActivity, DetailedDaySummary, WindowEntry, AppTag, TagType, TagTargetType } from '../../main/types'
 import { formatDuration, formatLocalDate } from './lib/format'
 import StatsView from './pages/StatsView'
 import SettingsView from './pages/SettingsView'
 import LogView from './pages/LogView'
+import WorkView from './pages/WorkView'
 
 // ─── Error Boundary ────────────────────────────────────────────
 
@@ -37,7 +38,7 @@ function hasApi(): boolean {
   return typeof window !== 'undefined' && !!window.api
 }
 
-type View = 'timeline' | 'log' | 'stats' | 'settings'
+type View = 'timeline' | 'log' | 'work' | 'stats' | 'settings'
 
 export default function App(): JSX.Element {
   if (!hasApi()) {
@@ -110,6 +111,13 @@ function AppInner(): JSX.Element {
           <List size={22} />
         </button>
         <button
+          className={`no-drag rounded-lg p-3 transition-colors ${view === 'work' ? 'bg-tt-accent/30 text-tt-accent' : 'text-tt-muted hover:text-tt-text'}`}
+          onClick={() => setView('work')}
+          title="Работа"
+        >
+          <Briefcase size={22} />
+        </button>
+        <button
           className={`no-drag rounded-lg p-3 transition-colors ${view === 'stats' ? 'bg-tt-accent/30 text-tt-accent' : 'text-tt-muted hover:text-tt-text'}`}
           onClick={() => setView('stats')}
           title="Statistics"
@@ -129,7 +137,7 @@ function AppInner(): JSX.Element {
       <main className="flex-1 overflow-auto">
         <header className="drag-region flex items-center justify-between border-b border-tt-border px-6 py-4">
           <h1 className="text-lg font-semibold">
-            {view === 'timeline' ? 'Timeline' : view === 'log' ? 'Daily Log' : view === 'stats' ? 'Statistics' : 'Settings'}
+            {view === 'timeline' ? 'Timeline' : view === 'log' ? 'Daily Log' : view === 'work' ? 'Работа' : view === 'stats' ? 'Statistics' : 'Settings'}
           </h1>
           {/* Current activity indicator */}
           <div className="no-drag flex items-center gap-2 text-sm">
@@ -169,6 +177,7 @@ function AppInner(): JSX.Element {
               onDateChange={setSelectedDate}
             />
           )}
+          {view === 'work' && <WorkView />}
           {view === 'stats' && <StatsView />}
           {view === 'settings' && <SettingsView />}
         </div>

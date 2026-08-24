@@ -1,0 +1,10 @@
+-- 006_task_keys.sql — извлечение Jira-ключей задач из window_title и url
+--
+-- ВАЖНО: ALTER TABLE ADD COLUMN не поддерживает IF NOT EXISTS в SQLite.
+-- Сам ALTER TABLE выполняется в DatabaseManager.backfillTaskKeys() (JS),
+-- здесь только комментарий-документация.
+--
+-- Пользователь работает с задачами (Jira-тикеты вида ADG-12144, AGDNS-4264 и т.п.).
+-- Эти ключи появляются в заголовках окон (Figma, браузер) и URL (Jira, Figma).
+-- Колонка task_key добавляется для группировки времени по задачам.
+-- Бэкфилл и ALTER TABLE выполняются в DatabaseManager.constructor → backfillTaskKeys().

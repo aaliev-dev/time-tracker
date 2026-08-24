@@ -10,6 +10,7 @@ export interface ActivityEvent {
   windowTitle: string
   url?: string | null
   categoryId?: number | null
+  taskKey?: string | null // Jira-ключ задачи, извлечённый из title/url (e.g. "ADG-12144")
   isAfk: boolean
   isPrivate: boolean
 }
@@ -75,6 +76,23 @@ export interface TagStat {
   seconds: number
 }
 
+/** Приложение/домен, отмеченный как «работа» — статистика за период */
+export interface WorkAppStat {
+  targetKey: string // app name or domain
+  targetType: TagTargetType
+  seconds: number
+  percentage: number
+}
+
+/** Статистика времени по задачам (Jira-ключи: ADG-12144 и т.п.) */
+export interface TaskStat {
+  taskKey: string // e.g. "ADG-12144"
+  seconds: number
+  percentage: number
+  /** Список приложений, в которых эта задача встречалась */
+  apps: string[]
+}
+
 /** Детальная сводка за день: appName с разбивкой по окнам/вкладкам */
 export interface DetailedDaySummary {
   appName: string
@@ -120,6 +138,8 @@ export const IPC_CHANNELS = {
   STATS_GET_PRODUCTIVITY: 'stats:getProductivity',
   STATS_GET_HEATMAP: 'stats:getHeatmap',
   STATS_GET_TAG_STATS: 'stats:getTagStats',
+  STATS_GET_WORK: 'stats:getWork',
+  STATS_GET_TASKS: 'stats:getTasks',
   ACTIVITIES_GET_AFK_TIME: 'activities:getAfkTime',
   CATEGORIES_GET_ALL: 'categories:getAll',
   CATEGORIES_UPSERT: 'categories:upsert',
@@ -163,6 +183,8 @@ export interface TimeTrackerApi {
     getProductivity: (days: number) => Promise<ProductivityStat[]>
     getHeatmap: (from: string, to: string) => Promise<HeatmapCell[]>
     getTagStats: (from: string, to: string) => Promise<TagStat[]>
+    getWork: (from: string, to: string) => Promise<WorkAppStat[]>
+    getTasks: (from: string, to: string) => Promise<TaskStat[]>
   }
   categories: {
     getAll: () => Promise<Category[]>

@@ -239,6 +239,18 @@ export function registerIpcHandlers(db: DatabaseManager, tracker: TrackingEngine
     return db.getTagStats(from, to)
   })
 
+  ipcMain.handle(IPC_CHANNELS.STATS_GET_WORK, (_event, from: string, to: string) => {
+    validateDate(from)
+    validateDate(to)
+    return db.getWorkStats(from, to)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.STATS_GET_TASKS, (_event, from: string, to: string) => {
+    validateDate(from)
+    validateDate(to)
+    return db.getTaskStats(from, to)
+  })
+
   // ─── App icons ───────────────────────────────────────────────
 
   ipcMain.handle(
