@@ -317,12 +317,18 @@ function isBrowser(appName: string): boolean {
   return BROWSER_APPS.has(appName)
 }
 
-/** Извлекает домен из URL (без www.) */
+/** Извлекает домен из URL (без www.)
+ *  Для localhost и IP-адресов включает порт: localhost:3001, 127.0.0.1:8080 */
 function extractDomain(url: string | null): string | null {
   if (!url) return null
   try {
     const u = new URL(url)
-    return u.hostname.replace(/^www\./, '')
+    const host = u.hostname.replace(/^www\./, '')
+    // localhost и IP-адреса — добавляем порт, чтобы отличать localhost:3001 от localhost:8501
+    if (host === 'localhost' || /^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
+      return u.port ? `${host}:${u.port}` : host
+    }
+    return host
   } catch {
   // Не валидный URL — попробуем найти домен вручную
     const match = url.match(/(?:https?:\/\/)?(?:www\.)?([a-z0-9][a-z0-9.-]+\.[a-z]{2,})/i)
@@ -590,6 +596,7 @@ function AppRow({ item, maxTime, tags, onSetTag, onDeleteTag }: AppRowProps): JS
           <div
             className="absolute inset-y-0 left-0 rounded bg-tt-accent/35"
             style={{ width: `${barWidth}%` }}
+            title={`${item.appName}\n${formatDuration(item.totalTime)} (${item.percentage.toFixed(0)}%)`}
           />
           <div className="relative flex h-full items-center gap-2 px-3">
             <span className="text-sm font-medium">{item.appName}</span>

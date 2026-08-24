@@ -48,7 +48,13 @@ function isBrowser(appName: string, bundleId?: string): boolean {
 
 function extractDomain(url: string): string | undefined {
   try {
-    return new URL(url).hostname.replace(/^www\./, '')
+    const u = new URL(url)
+    const host = u.hostname.replace(/^www\./, '')
+    // localhost и IP-адреса — добавляем порт для различения localhost:3001 vs localhost:8501
+    if (host === 'localhost' || /^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
+      return u.port ? `${host}:${u.port}` : host
+    }
+    return host
   } catch {
     return undefined
   }

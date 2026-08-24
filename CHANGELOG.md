@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Pie charts replaced with horizontal bars** — all pie charts across the app (StatsView top apps, tag distribution, WorkView apps/tasks) replaced with horizontal bar charts for better readability
+- **Single-instance lock hardened** — `app.exit(0)` instead of `app.quit()` for immediate second-instance termination. Existing window is focused/restored when a second launch is attempted
+
+### Fixed
+- **localhost domains now show with port** — `extractDomain` functions (renderer + main) now include the port for localhost and IP addresses (e.g., `localhost:3001`, `localhost:8501`, `127.0.0.1:59944`), so different localhost apps are no longer merged into a single `localhost` group in Timeline browser details
+- **Tooltips on all tabs** — native `title` tooltips added to bars in Daily Log (timeline + event list), Work tab (apps + tasks), Statistics (top apps + tag distribution), and Timeline (app bars). Hover any bar to see app name, duration, and percentage
 
 ### Fixed
 - **Accessibility permission spam** — `active-win` spawns a native binary using macOS Accessibility API every second in the poll loop. Without permission, macOS showed the system dialog on every call. Fix: check `systemPreferences.isTrustedAccessibilityClient()` before starting the poll loop; show the system prompt ONCE at startup; wait with check-only polling until the user grants permission; guard each `poll()` call

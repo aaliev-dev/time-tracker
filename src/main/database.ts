@@ -1033,7 +1033,12 @@ function extractDomainFromUrl(url: string): string | null {
   if (!url) return null
   try {
     const u = new URL(url)
-    return u.hostname.replace(/^www\./, '')
+    const host = u.hostname.replace(/^www\./, '')
+    // localhost и IP-адреса — добавляем порт для различения localhost:3001 vs localhost:8501
+    if (host === 'localhost' || /^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
+      return u.port ? `${host}:${u.port}` : host
+    }
+    return host
   } catch {
     // Не валидный URL — попробуем найти домен вручную
     const match = url.match(/(?:https?:\/\/)?(?:www\.)?([a-z0-9][a-z0-9.-]+\.[a-z]{2,})/i)

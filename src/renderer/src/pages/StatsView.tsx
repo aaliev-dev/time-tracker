@@ -173,6 +173,7 @@ export default function StatsView(): JSX.Element {
                             width: `${barWidth}%`,
                             backgroundColor: PIE_COLORS[idx % PIE_COLORS.length]
                           }}
+                          title={`${app.appName}\n${formatDuration(app.totalTime)} (${app.percentage.toFixed(0)}%)`}
                         />
                       </div>
                       <span className="w-16 shrink-0 text-right text-xs text-tt-muted">
@@ -502,6 +503,7 @@ function TagDistributionSection({ tagStats }: { tagStats: TagStat[] }): JSX.Elem
       <div className="space-y-2">
         {activeTags.map((t) => {
           const barWidth = maxSeconds > 0 ? (t.seconds / maxSeconds) * 100 : 0
+          const pct = total > 0 ? ((t.seconds / total) * 100).toFixed(0) : '0'
           return (
             <div key={t.tag} className="flex items-center gap-3">
               <span
@@ -517,6 +519,7 @@ function TagDistributionSection({ tagStats }: { tagStats: TagStat[] }): JSX.Elem
                     width: `${barWidth}%`,
                     backgroundColor: TAG_COLORS[t.tag] ?? '#414868'
                   }}
+                  title={`${TAG_LABELS[t.tag] ?? t.tag}\n${formatDuration(t.seconds)} (${pct}%)`}
                 />
               </div>
               <span className="w-16 shrink-0 text-right text-xs text-tt-muted">

@@ -128,13 +128,14 @@ export default function LogView({ selectedDate, onDateChange }: {
               {eventBars.map((bar, idx) => (
                 <div
                   key={idx}
-                  className="absolute inset-y-0 flex items-center justify-center overflow-hidden transition-opacity"
+                  className="absolute inset-y-0 flex items-center justify-center overflow-hidden transition-opacity cursor-help"
                   style={{
                     left: `${bar.leftPct}%`,
                     width: `${Math.max(bar.widthPct, 0.3)}%`,
                     backgroundColor: bar.color,
                     opacity: tooltip?.appName === bar.event.appName && tooltip?.tsStart === bar.event.tsStart ? 1 : 0.75,
                   }}
+                  title={`${bar.event.appName} — ${formatTime(bar.event.tsStart)} to ${formatTime(bar.event.tsEnd)} (${formatDuration(bar.event.duration)})${bar.event.windowTitle ? '\n' + bar.event.windowTitle : ''}${bar.event.url ? '\n' + bar.event.url : ''}`}
                   onMouseEnter={() =>
                     setTooltip({
                       appName: bar.event.appName,
@@ -226,6 +227,7 @@ export default function LogView({ selectedDate, onDateChange }: {
             {events.map((e, idx) => (
               <div
                 key={e.id ?? idx}
+                title={`${e.isAfk ? 'AFK' : e.appName} — ${formatTime(e.tsStart)} to ${formatTime(e.tsEnd)} (${formatDuration(e.duration)})${e.windowTitle ? '\n' + e.windowTitle : ''}${e.url ? '\n' + e.url : ''}`}
                 className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${
                   e.isAfk
                     ? 'border-tt-border/50 bg-tt-surface/50 opacity-50'
@@ -242,6 +244,7 @@ export default function LogView({ selectedDate, onDateChange }: {
                 <div className="w-28 shrink-0 text-xs text-tt-muted">
                   {formatTime(e.tsStart)} — {formatTime(e.tsEnd)}
                 </div>
+                {/* App name */}
 
                 {/* App name */}
                 <div className="w-40 shrink-0 truncate text-sm font-medium">
