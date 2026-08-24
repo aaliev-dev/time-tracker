@@ -107,17 +107,7 @@ export interface DetailedDaySummary {
 export interface DailyStat {
   date: string // YYYY-MM-DD
   totalActive: number // seconds
-  byCategory: { category: string; seconds: number }[]
-}
-
-/** Productivity score за день */
-export interface ProductivityStat {
-  date: string
-  score: number // 0-100 (50 = нейтрально)
-  totalActive: number
-  productiveTime: number // секунды в категориях с productivity > 0
-  distractingTime: number // секунды в категориях с productivity < 0
-  neutralTime: number // секунды в категориях с productivity = 0
+  byTag: { tag: TagType | 'untagged'; seconds: number }[]
 }
 
 /** Heatmap cell — day of week × hour */
@@ -135,7 +125,6 @@ export const IPC_CHANNELS = {
   ACTIVITIES_GET_SUMMARY_DETAILED: 'activities:getSummaryDetailed',
   STATS_GET_DAILY: 'stats:getDaily',
   STATS_GET_TOP_APPS: 'stats:getTopApps',
-  STATS_GET_PRODUCTIVITY: 'stats:getProductivity',
   STATS_GET_HEATMAP: 'stats:getHeatmap',
   STATS_GET_TAG_STATS: 'stats:getTagStats',
   STATS_GET_WORK: 'stats:getWork',
@@ -180,7 +169,6 @@ export interface TimeTrackerApi {
   stats: {
     getDaily: (days: number) => Promise<DailyStat[]>
     getTopApps: (from: string, to: string, limit?: number) => Promise<DaySummary[]>
-    getProductivity: (days: number) => Promise<ProductivityStat[]>
     getHeatmap: (from: string, to: string) => Promise<HeatmapCell[]>
     getTagStats: (from: string, to: string) => Promise<TagStat[]>
     getWork: (from: string, to: string) => Promise<WorkAppStat[]>
