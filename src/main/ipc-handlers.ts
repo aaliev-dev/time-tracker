@@ -222,11 +222,6 @@ export function registerIpcHandlers(db: DatabaseManager, tracker: TrackingEngine
     }
   )
 
-  ipcMain.handle(IPC_CHANNELS.STATS_GET_PRODUCTIVITY, (_event, days: number) => {
-    const safeDays = Math.min(Math.max(days || 7, 1), 90)
-    return db.getProductivityStats(safeDays)
-  })
-
   ipcMain.handle(IPC_CHANNELS.STATS_GET_HEATMAP, (_event, from: string, to: string) => {
     validateDate(from)
     validateDate(to)

@@ -2,7 +2,7 @@ import Database from 'better-sqlite3'
 import { readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
-import type { ActivityEvent, Category, CategoryRule, DaySummary, DailyStat, ProductivityStat, HeatmapCell, DetailedDaySummary, AppTag, TagTargetType, TagType, TagStat, WorkAppStat, TaskStat } from './types'
+import type { ActivityEvent, Category, CategoryRule, DaySummary, DailyStat, HeatmapCell, DetailedDaySummary, AppTag, TagTargetType, TagType, TagStat, WorkAppStat, TaskStat } from './types'
 
 /**
  * Database — обёртка над better-sqlite3.
@@ -238,6 +238,15 @@ export class DatabaseManager {
     const result: DailyStat[] = []
     const today = new Date()
 
+    // Pre-load all tags for fast lookup (same logic as getTagStats)
+    const tags = this.getAllAppTags()
+    const appTagMap = new Map<string, TagType>()
+    const domainTagMap = new Map<string, TagType>()
+    for (const t of tags) {
+      if (t.targetType === 'app') appTagMap.set(t.targetKey, t.tag)
+      else domainTagMap.set(t.targetKey, t.tag)
+    }
+
     for (let i = days - 1; i >= 0; i--) {
       const d = new Date(today)
       d.setDate(d.getDate() - i)
@@ -252,24 +261,42 @@ export class DatabaseManager {
         `)
         .get(start, end) as { totalActive: number }
 
-      // Per-category query
-      const catRows = this.db
+      // Per-tag breakdown (not per-category)
+      const eventRows = this.db
         .prepare(`
-          SELECT
-            COALESCE(c.name, 'Uncategorized')  AS category,
-            SUM(e.duration)                      AS seconds
-          FROM events e
-          LEFT JOIN categories c ON e.category_id = c.id
-          WHERE e.ts_start >= ? AND e.ts_start <= ? AND e.is_afk = 0
-          GROUP BY COALESCE(c.name, 'Uncategorized')
-          ORDER BY seconds DESC
+          SELECT app_name, url, duration
+          FROM events
+          WHERE ts_start >= ? AND ts_start <= ? AND is_afk = 0
         `)
-        .all(start, end) as { category: string; seconds: number }[]
+        .all(start, end) as { app_name: string; url: string | null; duration: number }[]
+
+      const tagTotals: Record<string, number> = {
+        work: 0, neutral: 0, distracting: 0, untagged: 0
+      }
+      for (const e of eventRows) {
+        let tag: TagType | 'untagged' = 'untagged'
+        const appTag = appTagMap.get(e.app_name)
+        if (appTag) {
+          tag = appTag
+        } else if (e.url) {
+          const domain = extractDomainFromUrl(e.url)
+          if (domain) {
+            const domainTag = domainTagMap.get(domain)
+            if (domainTag) tag = domainTag
+          }
+        }
+        tagTotals[tag] = (tagTotals[tag] ?? 0) + e.duration
+      }
 
       result.push({
         date: dateStr,
         totalActive: row.totalActive ?? 0,
-        byCategory: catRows.map(r => ({ category: r.category, seconds: r.seconds }))
+        byTag: [
+          { tag: 'work', seconds: tagTotals.work },
+          { tag: 'neutral', seconds: tagTotals.neutral },
+          { tag: 'distracting', seconds: tagTotals.distracting },
+          { tag: 'untagged', seconds: tagTotals.untagged }
+        ]
       })
     }
 
@@ -308,66 +335,7 @@ export class DatabaseManager {
     }))
   }
 
-  /**
-   * Productivity score за N последних дней.
-   * Score = (Σ(category.productivity × seconds) / Σ(seconds) + 2) / 4 × 100
-   * где productivity: -2 (distracting) .. +2 (productive)
-   *_uncategorized → productivity = 0 (neutral)
-   */
-  getProductivityStats(days: number): ProductivityStat[] {
-    const result: ProductivityStat[] = []
-    const today = new Date()
-
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(today)
-      d.setDate(d.getDate() - i)
-      const dateStr = formatLocalDate(d)
-      const { start, end } = localDayBounds(dateStr)
-
-      const rows = this.db
-        .prepare(`
-          SELECT
-            COALESCE(c.productivity, 0) AS productivity,
-            SUM(e.duration)              AS seconds
-          FROM events e
-          LEFT JOIN categories c ON e.category_id = c.id
-          WHERE e.ts_start >= ? AND e.ts_start <= ? AND e.is_afk = 0
-          GROUP BY COALESCE(c.productivity, 0)
-        `)
-        .all(start, end) as { productivity: number; seconds: number }[]
-
-      const totalActive = rows.reduce((s, r) => s + r.seconds, 0)
-
-      let productiveTime = 0
-      let distractingTime = 0
-      let neutralTime = 0
-      let weightedSum = 0
-
-      for (const r of rows) {
-        if (r.productivity > 0) productiveTime += r.seconds
-        else if (r.productivity < 0) distractingTime += r.seconds
-        else neutralTime += r.seconds
-        weightedSum += r.productivity * r.seconds
-      }
-
-      // weighted avg: -2..+2 → mapped to 0..100
-      const weightedAvg = totalActive > 0 ? weightedSum / totalActive : 0
-      const score = Math.round(((weightedAvg + 2) / 4) * 100)
-
-      result.push({
-        date: dateStr,
-        score,
-        totalActive,
-        productiveTime,
-        distractingTime,
-        neutralTime
-      })
-    }
-
-    return result
-  }
-
-  /**
+  /** 
    * Heatmap активности: 7 дней недели × 24 часа.
    * Каждый event разбивается по часу начала (приближение).
    * Возвращает массив ячеек { dayOfWeek(0-6), hour(0-23), seconds }.
