@@ -29,7 +29,9 @@ const api = {
     getTopApps: (from: string, to: string, limit?: number) => ipcRenderer.invoke(IPC_CHANNELS.STATS_GET_TOP_APPS, from, to, limit),
     getProductivity: (days: number) => ipcRenderer.invoke(IPC_CHANNELS.STATS_GET_PRODUCTIVITY, days),
     getHeatmap: (from: string, to: string) => ipcRenderer.invoke(IPC_CHANNELS.STATS_GET_HEATMAP, from, to),
-    getTagStats: (from: string, to: string) => ipcRenderer.invoke(IPC_CHANNELS.STATS_GET_TAG_STATS, from, to)
+    getTagStats: (from: string, to: string) => ipcRenderer.invoke(IPC_CHANNELS.STATS_GET_TAG_STATS, from, to),
+    getWork: (from: string, to: string) => ipcRenderer.invoke(IPC_CHANNELS.STATS_GET_WORK, from, to),
+    getTasks: (from: string, to: string) => ipcRenderer.invoke(IPC_CHANNELS.STATS_GET_TASKS, from, to)
   },
   categories: {
     getAll: () => ipcRenderer.invoke(IPC_CHANNELS.CATEGORIES_GET_ALL),

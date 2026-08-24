@@ -2,7 +2,7 @@ import Database from 'better-sqlite3'
 import { readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
-import type { ActivityEvent, Category, CategoryRule, DaySummary, DailyStat, ProductivityStat, HeatmapCell, DetailedDaySummary, AppTag, TagTargetType, TagType, TagStat } from './types'
+import type { ActivityEvent, Category, CategoryRule, DaySummary, DailyStat, ProductivityStat, HeatmapCell, DetailedDaySummary, AppTag, TagTargetType, TagType, TagStat, WorkAppStat, TaskStat } from './types'
 
 /**
  * Database — обёртка над better-sqlite3.
@@ -21,7 +21,17 @@ export class DatabaseManager {
     this.db = new Database(path)
     this.db.pragma('journal_mode = WAL') // WAL — быстрее для частых записей
     this.db.pragma('foreign_keys = ON')
+
+    // Регистрируем JS-функцию для извлечения Jira-ключей в SQL-запросах
+    // (SQLite не имеет встроенного regex). Используется при бэкфилле.
+    this.db.function('extractTaskKey', (text: string | null): string | null => {
+      return extractTaskKey(text)
+    })
+
     this.runMigrations()
+
+    // Бэкфилл: проставляем task_key для существующих событий
+    this.backfillTaskKeys()
   }
 
   private getDefaultDbPath(): string {
@@ -70,6 +80,47 @@ export class DatabaseManager {
     }
   }
 
+  /**
+   * Добавляет колонку task_key (если её нет) и заполняет Jira-ключами
+   * из window_title и url. Вызывается после миграций.
+   *
+   * ALTER TABLE не поддерживает IF NOT EXISTS, поэтому делаем через
+   * PRAGMA table_info — проверяем наличие колонки перед ALTER.
+   */
+  private backfillTaskKeys(): void {
+    try {
+      // Проверяем, существует ли колонка task_key
+      const cols = this.db.prepare("PRAGMA table_info(events)").all() as { name: string }[]
+      const hasTaskKey = cols.some((c) => c.name === 'task_key')
+
+      if (!hasTaskKey) {
+        // Добавляем колонку (выполняется один раз)
+        this.db.exec('ALTER TABLE events ADD COLUMN task_key TEXT')
+      }
+
+      // Создаём индекс (безопасно — IF NOT EXISTS)
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_events_task_key ON events(task_key) WHERE task_key IS NOT NULL')
+
+      // Бэкфилл: window_title → task_key
+      this.db.exec(`
+        UPDATE events SET task_key = extractTaskKey(window_title)
+        WHERE task_key IS NULL AND extractTaskKey(window_title) IS NOT NULL
+      `)
+      // Бэкфилл: url → task_key (если window_title не дал ключа)
+      this.db.exec(`
+        UPDATE events SET task_key = extractTaskKey(url)
+        WHERE task_key IS NULL AND extractTaskKey(url) IS NOT NULL
+      `)
+      // Очистка ложных срабатываний (UTF-8 и т.п.)
+      this.db.exec(`
+        UPDATE events SET task_key = NULL
+        WHERE task_key IN ('UTF-8', 'UTF-16', 'ASCII-0', 'HTTP-1', 'HTTPS-1')
+      `)
+    } catch {
+      // Колонка может не существовать до применения миграции — игнорируем
+    }
+  }
+
   // ─── Events CRUD ─────────────────────────────────────────────
 
   /**
@@ -85,9 +136,13 @@ export class DatabaseManager {
       event.appBundleId,
       event.url ?? undefined
     )
+
+    // Извлекаем Jira-ключ задачи из windowTitle и url
+    const taskKey = event.taskKey ?? extractTaskKey(event.windowTitle) ?? extractTaskKey(event.url ?? '')
+
     const stmt = this.db.prepare(`
-      INSERT INTO events (ts_start, ts_end, duration, app_name, app_bundle, window_title, url, category_id, is_afk, is_private)
-      VALUES (@tsStart, @tsEnd, @duration, @appName, @appBundleId, @windowTitle, @url, @categoryId, @isAfk, @isPrivate)
+      INSERT INTO events (ts_start, ts_end, duration, app_name, app_bundle, window_title, url, category_id, task_key, is_afk, is_private)
+      VALUES (@tsStart, @tsEnd, @duration, @appName, @appBundleId, @windowTitle, @url, @categoryId, @taskKey, @isAfk, @isPrivate)
     `)
     const result = stmt.run({
       tsStart: event.tsStart,
@@ -98,6 +153,7 @@ export class DatabaseManager {
       windowTitle: event.windowTitle,
       url: event.url ?? null,
       categoryId: categoryId ?? null,
+      taskKey: taskKey ?? null,
       isAfk: event.isAfk ? 1 : 0,
       isPrivate: event.isPrivate ? 1 : 0
     })
@@ -714,6 +770,123 @@ export class DatabaseManager {
 
   // ─── Lifecycle ───────────────────────────────────────────────
 
+  // ─── Work stats (apps/domains tagged as 'work') ───────────────────
+
+  /**
+   * Возвращает статистику времени по приложениям и доменам, отмеченным как 'work'.
+   * Работает аналогично getTagStats, но фильтрует только work-теги и
+   * группирует по target_key (app name или domain).
+   */
+  getWorkStats(fromDate: string, toDate: string): WorkAppStat[] {
+    const { start } = localDayBounds(fromDate)
+    const { end: endBound } = localDayBounds(toDate)
+
+    const rows = this.db
+      .prepare(`
+        SELECT app_name, url, duration
+        FROM events
+        WHERE ts_start >= ? AND ts_start <= ? AND is_afk = 0
+      `)
+      .all(start, endBound) as { app_name: string; url: string | null; duration: number }[]
+
+    // Получаем все work-теги
+    const tags = this.getAllAppTags()
+    const appWorkTags = new Set<string>()
+    const domainWorkTags = new Set<string>()
+    for (const t of tags) {
+      if (t.tag !== 'work') continue
+      if (t.targetType === 'app') appWorkTags.add(t.targetKey)
+      else domainWorkTags.add(t.targetKey)
+    }
+
+    // Агрегируем: для каждого события проверяем, помечено ли приложение/домен как work
+    const totals = new Map<string, { key: string; type: TagTargetType; seconds: number }>()
+
+    for (const row of rows) {
+      let workKey: string | null = null
+      let workType: TagTargetType | null = null
+
+      if (appWorkTags.has(row.app_name)) {
+        workKey = row.app_name
+        workType = 'app'
+      } else if (row.url) {
+        const domain = extractDomainFromUrl(row.url)
+        if (domain && domainWorkTags.has(domain)) {
+          workKey = domain
+          workType = 'domain'
+        }
+      }
+
+      if (workKey && workType) {
+        const existing = totals.get(workKey)
+        if (existing) {
+          existing.seconds += row.duration
+        } else {
+          totals.set(workKey, { key: workKey, type: workType, seconds: row.duration })
+        }
+      }
+    }
+
+    const result = Array.from(totals.values()).sort((a, b) => b.seconds - a.seconds)
+    const grandTotal = result.reduce((s, r) => s + r.seconds, 0)
+
+    return result.map((r) => ({
+      targetKey: r.key,
+      targetType: r.type,
+      seconds: r.seconds,
+      percentage: grandTotal > 0 ? (r.seconds / grandTotal) * 100 : 0
+    }))
+  }
+
+  // ─── Task stats (Jira-style keys) ──────────────────────────────
+
+  /**
+   * Возвращает разбивку времени по задачам (Jira-ключам: ADG-12144 и т.п.).
+   * Группирует события с непустым task_key, считает общее время.
+   */
+  getTaskStats(fromDate: string, toDate: string): TaskStat[] {
+    const { start } = localDayBounds(fromDate)
+    const { end: endBound } = localDayBounds(toDate)
+
+    const rows = this.db
+      .prepare(`
+        SELECT task_key, app_name, SUM(duration) AS total_seconds
+        FROM events
+        WHERE ts_start >= ? AND ts_start <= ? AND is_afk = 0 AND task_key IS NOT NULL
+        GROUP BY task_key, app_name
+        ORDER BY total_seconds DESC
+      `)
+      .all(start, endBound) as { task_key: string; app_name: string; total_seconds: number }[]
+
+    // Группируем по task_key
+    const taskMap = new Map<string, { seconds: number; apps: Set<string> }>()
+    for (const row of rows) {
+      let entry = taskMap.get(row.task_key)
+      if (!entry) {
+        entry = { seconds: 0, apps: new Set<string>() }
+        taskMap.set(row.task_key, entry)
+      }
+      entry.seconds += row.total_seconds
+      entry.apps.add(row.app_name)
+    }
+
+    const result = Array.from(taskMap.entries())
+      .map(([key, val]) => ({
+        taskKey: key,
+        seconds: val.seconds,
+        apps: Array.from(val.apps).sort()
+      }))
+      .sort((a, b) => b.seconds - a.seconds)
+
+    const grandTotal = result.reduce((s, r) => s + r.seconds, 0)
+    return result.map((r) => ({
+      ...r,
+      percentage: grandTotal > 0 ? (r.seconds / grandTotal) * 100 : 0
+    }))
+  }
+
+  // ─── Lifecycle ───────────────────────────────────────────────
+
   close(): void {
     this.db.close()
   }
@@ -731,6 +904,7 @@ interface RawEventRow {
   window_title: string
   url: string | null
   category_id: number | null
+  task_key: string | null
   is_afk: number
   is_private: number
 }
@@ -746,6 +920,7 @@ function rowToEvent(row: RawEventRow): ActivityEvent {
     windowTitle: row.window_title,
     url: row.url,
     categoryId: row.category_id,
+    taskKey: row.task_key ?? null,
     isAfk: row.is_afk === 1,
     isPrivate: row.is_private === 1
   }
@@ -864,4 +1039,30 @@ function extractDomainFromUrl(url: string): string | null {
     const match = url.match(/(?:https?:\/\/)?(?:www\.)?([a-z0-9][a-z0-9.-]+\.[a-z]{2,})/i)
     return match ? match[1] : null
   }
+}
+
+/**
+ * Извлекает Jira-ключ задачи из текста (window title или URL).
+ * Паттерн: 2-10 заглавных букв (возможно с цифрами), дефис, 1-6 цифр.
+ * Примеры: ADG-12144, AGDNS-4264, ADGUARD-1
+ *
+ * Не матчит: HD-1080 (видео), 4K-60 (разрешение) —
+* эти строки должны присутствовать в контексте задачи (title/url).
+ */
+export function extractTaskKey(text: string | null): string | null {
+  if (!text) return null
+  // Jira-ключ: 2+ заглавных букв, дефис, цифры. Граница слова спереди.
+  const match = text.match(/\b([A-Z][A-Z0-9]{1,9}-\d{1,6})\b/)
+  if (!match) return null
+
+  // Фильтр ложных срабатываний — технические коды, не Jira-ключи
+  const FALSE_POSITIVES = new Set([
+    'UTF-8', 'UTF-16', 'ASCII-0',
+    'HTTP-1', 'HTTPS-1'
+  ])
+  if (FALSE_POSITIVES.has(match[1])) return null
+
+  // Дополнительно: ключ должен содержать хотя бы 2 буквы подряд (не только цифры меж дефисом)
+  // UTF-8 проходит, но это известное исключение выше.
+  return match[1]
 }
