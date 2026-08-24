@@ -181,6 +181,7 @@ function HBarChart({
       {data.map((item, idx) => {
         const barWidth = maxVal > 0 ? (item.value / maxVal) * 100 : 0
         const label = renderLabel ? renderLabel(item) : item.name
+        const pct = total > 0 ? ((item.value / total) * 100).toFixed(0) : '0'
         return (
           <div key={`${item.name}-${idx}`} className="flex items-center gap-3">
             <span
@@ -196,13 +197,14 @@ function HBarChart({
                   width: `${barWidth}%`,
                   backgroundColor: BAR_COLORS[idx % BAR_COLORS.length]
                 }}
+                title={`${label}\n${formatDuration(item.value)} (${pct}%)`}
               />
             </div>
             <span className="w-16 shrink-0 text-right text-xs text-tt-muted">
               {formatDuration(item.value)}
             </span>
             <span className="w-10 shrink-0 text-right text-xs text-tt-muted">
-              {total > 0 ? ((item.value / total) * 100).toFixed(0) : 0}%
+              {pct}%
             </span>
           </div>
         )

@@ -191,7 +191,9 @@ function updateTrayMenu(): void {
 // Single-instance lock — не даём запустить второй экземпляр приложения
 const gotTheLock = app.requestSingleInstanceLock()
 if (!gotTheLock) {
-  app.quit()
+  // app.exit() — мгновенный выход, в отличие от app.quit()
+  // который ждёт обработчиков before-quit и может зависнуть
+  app.exit(0)
 }
 
 app.on('second-instance', () => {
@@ -200,6 +202,8 @@ app.on('second-instance', () => {
     if (mainWindow.isMinimized()) mainWindow.restore()
     mainWindow.show()
     mainWindow.focus()
+  } else {
+    createWindow()
   }
 })
 
