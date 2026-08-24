@@ -27,3 +27,4 @@ mac:
   hardenedRuntime: true
   gatekeeperAssess: false
   identity: null
+afterPack: scripts/after-pack.cjs

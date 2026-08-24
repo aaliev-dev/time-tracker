@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Ad-hoc code signing** — `codesign -s -` hook runs after electron-builder packs the .app, giving the app a stable macOS TCC identity. Accessibility permission now persists across app reinstalls without Apple Developer account. Hook at `scripts/after-pack.cjs`, referenced in `electron-builder.yml` via `afterPack`
 - **App/domain tags** — manual tagging of apps and websites as work (работа), neutral (нейтральное), or distracting (отвлечение). Three-dots dropdown menu on each app row and browser domain in Timeline. Tag badges displayed inline. Tags persist in DB (`app_tags` table, migration 004). New IPC channels: `tags:getAll`, `tags:set`, `tags:delete`. Preload exposes `window.api.tags`
 - **AFK time display in Timeline** — shows total away-from-keyboard time per day below the app list. New IPC channel `activities:getAfkTime`. Preload exposes `window.api.activities.getAfkTime`
 - **Tag distribution chart in Statistics** — pie chart showing time breakdown by tag (work/neutral/distracting/untagged) for the selected range. New IPC channel `stats:getTagStats`. Preload exposes `window.api.stats.getTagStats`
