@@ -6,9 +6,6 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
   LineChart,
   Line,
   ReferenceLine,
@@ -36,7 +33,7 @@ export default function StatsView(): JSX.Element {
   const [productivity, setProductivity] = useState<ProductivityStat[]>([])
   const [heatmap, setHeatmap] = useState<HeatmapCell[]>([])
   const [tagStats, setTagStats] = useState<TagStat[]>([])
-  const [range, setRange] = useState(7)
+  const [range, setRange] = useState(1) // 1 = today
   const [loading, setLoading] = useState(true)
 
   const loadData = useCallback(async () => {
@@ -88,8 +85,7 @@ export default function StatsView(): JSX.Element {
     <div className="space-y-6">
       {/* Range selector */}
       <div className="flex items-center gap-3">
-        <span className="text-sm text-tt-muted">Last</span>
-        {[7, 14, 30].map((n) => (
+        {[1, 7, 14, 30].map((n) => (
           <button
             key={n}
             onClick={() => setRange(n)}
@@ -99,7 +95,7 @@ export default function StatsView(): JSX.Element {
                 : 'border border-tt-border text-tt-muted hover:text-tt-text'
             }`}
           >
-            {n} days
+            {n === 1 ? 'Сегодня' : `${n} дней`}
           </button>
         ))}
       </div>
@@ -152,53 +148,42 @@ export default function StatsView(): JSX.Element {
             </ResponsiveContainer>
           </div>
 
-          {/* Top apps pie chart */}
+          {/* Top apps — horizontal bars */}
           <div className="rounded-lg border border-tt-border bg-tt-surface p-4">
             <h2 className="mb-4 text-sm font-medium text-tt-muted">Top applications</h2>
             {pieData.length === 0 ? (
               <div className="py-8 text-center text-tt-muted">No data</div>
             ) : (
-              <div className="flex items-center gap-6">
-                <ResponsiveContainer width="50%" height={250}>
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={90}
-                      innerRadius={40}
-                    >
-                      {pieData.map((_, idx) => (
-                        <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#1a1b26',
-                        border: '1px solid #414868',
-                        borderRadius: '8px'
-                      }}
-                      formatter={(value: number) => [formatDuration(value), '']}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="flex-1 space-y-2">
-                  {topApps.slice(0, 8).map((app, idx) => (
-                    <div key={app.appName} className="flex items-center gap-2 text-sm">
+              <div className="space-y-2">
+                {topApps.slice(0, 10).map((app, idx) => {
+                  const maxTime = topApps[0]?.totalTime ?? 1
+                  const barWidth = maxTime > 0 ? (app.totalTime / maxTime) * 100 : 0
+                  return (
+                    <div key={app.appName} className="flex items-center gap-3">
                       <span
-                        className="h-3 w-3 rounded-sm"
-                        style={{ backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }}
-                      />
-                      <span className="flex-1 truncate">{app.appName}</span>
-                      <span className="text-tt-muted">{formatDuration(app.totalTime)}</span>
-                      <span className="w-10 text-right text-xs text-tt-muted">
+                        className="w-32 shrink-0 truncate text-sm"
+                        title={app.appName}
+                      >
+                        {app.appName}
+                      </span>
+                      <div className="relative h-5 flex-1 overflow-hidden rounded bg-tt-bg">
+                        <div
+                          className="h-full rounded transition-all"
+                          style={{
+                            width: `${barWidth}%`,
+                            backgroundColor: PIE_COLORS[idx % PIE_COLORS.length]
+                          }}
+                        />
+                      </div>
+                      <span className="w-16 shrink-0 text-right text-xs text-tt-muted">
+                        {formatDuration(app.totalTime)}
+                      </span>
+                      <span className="w-10 shrink-0 text-right text-xs text-tt-muted">
                         {app.percentage.toFixed(0)}%
                       </span>
                     </div>
-                  ))}
-                </div>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -508,55 +493,41 @@ function TagDistributionSection({ tagStats }: { tagStats: TagStat[] }): JSX.Elem
   const total = tagStats.reduce((s, t) => s + t.seconds, 0)
   if (total === 0) return <></>
 
-  // Only show segments with time > 0
-  const pieData = tagStats
-    .filter((t) => t.seconds > 0)
-    .map((t) => ({ name: TAG_LABELS[t.tag] ?? t.tag, value: t.seconds, tag: t.tag }))
+  const activeTags = tagStats.filter((t) => t.seconds > 0)
+  const maxSeconds = activeTags[0]?.seconds ?? 1
 
   return (
     <div className="rounded-lg border border-tt-border bg-tt-surface p-4">
       <h2 className="mb-4 text-sm font-medium text-tt-muted">Time by tag</h2>
-      <div className="flex items-center gap-6">
-        <ResponsiveContainer width="50%" height={220}>
-          <PieChart>
-            <Pie
-              data={pieData}
-              dataKey="value"
-              nameKey="name"
-              cx="50%"
-              cy="50%"
-              outerRadius={85}
-              innerRadius={35}
-            >
-              {pieData.map((entry, idx) => (
-                <Cell key={idx} fill={TAG_COLORS[entry.tag] ?? '#414868'} />
-              ))}
-            </Pie>
-            <Tooltip
-              contentStyle={{
-                backgroundColor: '#1a1b26',
-                border: '1px solid #414868',
-                borderRadius: '8px'
-              }}
-              formatter={(value: number) => [formatDuration(value), '']}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-        <div className="flex-1 space-y-2">
-          {tagStats.map((t) => (
-            <div key={t.tag} className="flex items-center gap-2 text-sm">
+      <div className="space-y-2">
+        {activeTags.map((t) => {
+          const barWidth = maxSeconds > 0 ? (t.seconds / maxSeconds) * 100 : 0
+          return (
+            <div key={t.tag} className="flex items-center gap-3">
               <span
-                className="h-3 w-3 rounded-sm"
-                style={{ backgroundColor: TAG_COLORS[t.tag] ?? '#414868' }}
-              />
-              <span className="flex-1">{TAG_LABELS[t.tag] ?? t.tag}</span>
-              <span className="text-tt-muted">{formatDuration(t.seconds)}</span>
-              <span className="w-10 text-right text-xs text-tt-muted">
+                className="w-24 shrink-0 truncate text-sm"
+                title={TAG_LABELS[t.tag] ?? t.tag}
+              >
+                {TAG_LABELS[t.tag] ?? t.tag}
+              </span>
+              <div className="relative h-5 flex-1 overflow-hidden rounded bg-tt-bg">
+                <div
+                  className="h-full rounded transition-all"
+                  style={{
+                    width: `${barWidth}%`,
+                    backgroundColor: TAG_COLORS[t.tag] ?? '#414868'
+                  }}
+                />
+              </div>
+              <span className="w-16 shrink-0 text-right text-xs text-tt-muted">
+                {formatDuration(t.seconds)}
+              </span>
+              <span className="w-10 shrink-0 text-right text-xs text-tt-muted">
                 {total > 0 ? ((t.seconds / total) * 100).toFixed(0) : 0}%
               </span>
             </div>
-          ))}
-        </div>
+          )
+        })}
       </div>
     </div>
   )
