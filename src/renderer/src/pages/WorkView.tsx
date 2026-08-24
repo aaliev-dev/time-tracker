@@ -72,7 +72,8 @@ export default function WorkView(): JSX.Element {
     ...taskStats.map((t) => ({
       name: t.taskKey,
       value: t.seconds,
-      apps: t.apps.join(', ')
+      apps: t.apps.join(', '),
+      href: `https://jira.int.agrd.dev/browse/${t.taskKey}`
     })),
     ...(otherTime > 0
       ? [{ name: 'Остальное', value: otherTime, color: '#414868' as string | undefined }]
@@ -169,6 +170,7 @@ interface BarItem {
   value: number
   apps?: string
   color?: string
+  href?: string
 }
 
 function HBarChart({
@@ -194,12 +196,24 @@ function HBarChart({
         const pct = total > 0 ? ((item.value / total) * 100).toFixed(0) : '0'
         return (
           <div key={`${item.name}-${idx}`} className="flex items-center gap-3">
-            <span
-              className="w-32 shrink-0 truncate text-sm"
-              title={label}
-            >
-              {label}
-            </span>
+            {item.href ? (
+              <a
+                href={item.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-32 shrink-0 truncate text-sm text-tt-accent hover:underline"
+                title={`${label} — открыть в Jira`}
+              >
+                {label}
+              </a>
+            ) : (
+              <span
+                className="w-32 shrink-0 truncate text-sm"
+                title={label}
+              >
+                {label}
+              </span>
+            )}
             <div className="relative h-6 flex-1 overflow-hidden rounded bg-tt-bg">
               <div
                 className="h-full rounded transition-all"

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Jira links in Tasks section** — task keys in Work tab «По задачам» are now clickable links opening `jira.int.agrd.dev/browse/{key}` in the default browser. «Остальное» has no link
 - **«Остальное» in Tasks section** — Work tab «По задачам» now shows an «Остальное» (Other) bar for work time not tied to any Jira task key. Total for the tasks section now equals total work time instead of only task time
 - **«Сегодня» filter** — range selector in Statistics and Work tabs now includes «Сегодня» (Today) as the default option, showing data for the current day only
 - **Work tab** — new sidebar tab «Работа» showing statistics for apps/sites tagged as 'work' and a breakdown by Jira task keys (ADG-12144, AGDNS-4264, etc.). Task keys are automatically extracted from window titles and URLs (migration 006). New IPC channels: `stats:getWork`, `stats:getTasks`. Preload exposes `window.api.stats.getWork` and `window.api.stats.getTasks`
