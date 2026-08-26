@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **IPC input validation** — `settings:set` accepted any `key: string` from renderer (untrusted context), allowing arbitrary writes to the `settings` table. Fix: added whitelist of allowed setting keys (`autostart`, `excludedApps`, `idleThreshold`). Also added `targetType`/`tag` validation for tags handlers, `matchType`/`field` whitelists and pattern length limit (500 chars) for category rules — ReDoS protection for regex patterns
+
 ### Changed
 - **Shared types moved to `src/shared/types.ts`** — types were in `src/main/types.ts` but imported by both main and renderer. Renderer depending on `../../../main/types` was cross-boundary coupling. Moved to `src/shared/types.ts` (single source of truth). `src/main/types.ts` now re-exports for backward compat. tsconfig includes updated accordingly
 

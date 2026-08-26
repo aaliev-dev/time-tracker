@@ -65,6 +65,9 @@ export function registerIpcHandlers(db: DatabaseManager, tracker: TrackingEngine
   })
 
   ipcMain.handle(IPC_CHANNELS.CATEGORIES_UPSERT, (_event, category: Partial<Category>) => {
+    if (category.name !== undefined && (category.name.length === 0 || category.name.length > 100)) {
+      throw new Error('Category name must be 1-100 characters')
+    }
     return db.upsertCategory(category)
   })
 
@@ -79,6 +82,16 @@ export function registerIpcHandlers(db: DatabaseManager, tracker: TrackingEngine
   })
 
   ipcMain.handle(IPC_CHANNELS.RULES_UPSERT, (_event, rule: Partial<CategoryRule>) => {
+    if (rule.matchType !== undefined) {
+      assertRuleMatchType(rule.matchType)
+    }
+    // ReDoS protection: limit regex pattern length
+    if (rule.value !== undefined && rule.value.length > 500) {
+      throw new Error('Rule value must be at most 500 characters')
+    }
+    if (rule.field !== undefined) {
+      assertRuleField(rule.field)
+    }
     return db.upsertRule(rule)
   })
 
@@ -89,6 +102,7 @@ export function registerIpcHandlers(db: DatabaseManager, tracker: TrackingEngine
   // ─── Settings ─────────────────────────────────────────────
 
   ipcMain.handle(IPC_CHANNELS.SETTINGS_GET, (_event, key: string) => {
+    assertSettingKey(key)
     const value = db.getSetting(key)
     // Пытаемся распарсить JSON, если есть — возвращаем объект, иначе строку
     if (value === null) return null
@@ -102,6 +116,7 @@ export function registerIpcHandlers(db: DatabaseManager, tracker: TrackingEngine
   ipcMain.handle(
     IPC_CHANNELS.SETTINGS_SET,
     (_event, key: string, value: unknown) => {
+      assertSettingKey(key)
       const serialized = typeof value === 'string' ? value : JSON.stringify(value)
       db.setSetting(key, serialized)
       // Handle special settings
@@ -263,20 +278,78 @@ export function registerIpcHandlers(db: DatabaseManager, tracker: TrackingEngine
 
   ipcMain.handle(
     IPC_CHANNELS.TAGS_SET,
-    (_event, targetType: TagTargetType, targetKey: string, tag: TagType) => {
+    (_event, targetType: string, targetKey: string, tag: string) => {
+      assertTagTargetType(targetType)
+      assertTagType(tag)
+      if (!targetKey || targetKey.length > 500) {
+        throw new Error('targetKey must be 1-500 characters')
+      }
       return db.setAppTag(targetType, targetKey, tag)
     }
   )
 
   ipcMain.handle(
     IPC_CHANNELS.TAGS_DELETE,
-    (_event, targetType: TagTargetType, targetKey: string) => {
+    (_event, targetType: string, targetKey: string) => {
+      assertTagTargetType(targetType)
+      if (!targetKey || targetKey.length > 500) {
+        throw new Error('targetKey must be 1-500 characters')
+      }
       db.deleteAppTag(targetType, targetKey)
     }
   )
 }
 
 // ─── Validation helpers ────────────────────────────────────────
+
+/**
+ * Whitelist разрешённых ключей настроек.
+ * Без этого renderer мог записать произвольный key в settings таблицу.
+ */
+const ALLOWED_SETTING_KEYS = new Set([
+  'autostart',
+  'excludedApps',
+  'idleThreshold',
+])
+
+function assertSettingKey(key: string): void {
+  if (!ALLOWED_SETTING_KEYS.has(key)) {
+    throw new Error(`Unknown setting key: "${key}". Allowed: ${[...ALLOWED_SETTING_KEYS].join(', ')}`)
+  }
+}
+
+/**
+ * Валидация targetType для тегов — принимает только 'app' | 'domain'.
+ */
+function assertTagTargetType(targetType: string): asserts targetType is TagTargetType {
+  if (targetType !== 'app' && targetType !== 'domain') {
+    throw new Error(`Invalid targetType: "${targetType}". Expected "app" or "domain".`)
+  }
+}
+
+/**
+ * Валидация тега — принимает только work/neutral/distracting.
+ */
+function assertTagType(tag: string): asserts tag is TagType {
+  if (tag !== 'work' && tag !== 'neutral' && tag !== 'distracting') {
+    throw new Error(`Invalid tag: "${tag}". Expected "work", "neutral", or "distracting".`)
+  }
+}
+
+const ALLOWED_RULE_FIELDS = new Set(['app_name', 'window_title', 'url', 'app_bundle'])
+const ALLOWED_RULE_MATCH_TYPES = new Set(['equals', 'contains', 'startsWith', 'regex'])
+
+function assertRuleField(field: string): asserts field is CategoryRule['field'] {
+  if (!ALLOWED_RULE_FIELDS.has(field)) {
+    throw new Error(`Invalid rule field: "${field}". Allowed: ${[...ALLOWED_RULE_FIELDS].join(', ')}`)
+  }
+}
+
+function assertRuleMatchType(matchType: string): asserts matchType is CategoryRule['matchType'] {
+  if (!ALLOWED_RULE_MATCH_TYPES.has(matchType)) {
+    throw new Error(`Invalid matchType: "${matchType}". Allowed: ${[...ALLOWED_RULE_MATCH_TYPES].join(', ')}`)
+  }
+}
 
 function validateDate(dateStr: string): void {
   // Простой валидатор: YYYY-MM-DD
