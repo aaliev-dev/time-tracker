@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { IPC_CHANNELS } from '../main/types'
+import { IPC_CHANNELS } from '../shared/types'
 
 // Type-safe API exposed to renderer via contextBridge
 const api = {

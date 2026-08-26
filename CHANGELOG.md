@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Shared types moved to `src/shared/types.ts`** — types were in `src/main/types.ts` but imported by both main and renderer. Renderer depending on `../../../main/types` was cross-boundary coupling. Moved to `src/shared/types.ts` (single source of truth). `src/main/types.ts` now re-exports for backward compat. tsconfig includes updated accordingly
+
 ### Fixed
 - **Migration version tracking** — migrations were re-executed on every app launch because there was no `schema_migrations` table to track which had been applied. Schema migrations (001–004) were safe due to `IF NOT EXISTS`, but data migrations like 005 (`DELETE`/`UPDATE` on events) ran every startup — wasteful and risky. Fix: added `schema_migrations` table, atomic migration runner (each migration + its record in a single transaction), and one-time existing-DB detection (marks all prior migrations as applied on first run with the new code). `backfillTaskKeys()` moved from TypeScript into migration 006 (now contains actual `ALTER TABLE` + `UPDATE` SQL instead of a comment)
 - **loginwindow tracked as real activity** — when the macOS screen is locked, `active-win` returns `loginwindow` (or `ScreenSaverEngine`) as the active window. The tracker was recording these as real app events with `is_afk=0`. Now `loginwindow` and `ScreenSaverEngine` are detected and treated as "screen locked" — the current event is closed, no new event is recorded, and the UI shows «Screen locked» until the user returns. The AFK detector's `lock-screen` event then records the AFK period normally

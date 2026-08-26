@@ -7,7 +7,7 @@ import {
   Tooltip,
   ResponsiveContainer
 } from 'recharts'
-import type { DailyStat, DaySummary, HeatmapCell, TagStat, TagType } from '../../../main/types'
+import type { DailyStat, DaySummary, HeatmapCell, TagStat, TagType } from '../../../shared/types'
 import { formatDuration, formatShort } from '../lib/format'
 
 const PIE_COLORS = [

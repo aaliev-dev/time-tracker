@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { WorkAppStat, TaskStat } from '../../../main/types'
+import type { WorkAppStat, TaskStat } from '../../../shared/types'
 import { formatDuration } from '../lib/format'
 
 const BAR_COLORS = [
