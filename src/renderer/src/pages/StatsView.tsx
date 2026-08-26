@@ -10,19 +10,6 @@ import {
 import type { DailyStat, DaySummary, HeatmapCell, TagStat, TagType } from '../../../shared/types'
 import { formatDuration, formatShort } from '../lib/format'
 
-const PIE_COLORS = [
-  '#7aa2f7',
-  '#9ece6a',
-  '#e0af68',
-  '#f7768e',
-  '#bb9af7',
-  '#73daca',
-  '#ff9e64',
-  '#c0caf5',
-  '#db4b4b',
-  '#1abc9c'
-]
-
 export default function StatsView(): JSX.Element {
   const [dailyStats, setDailyStats] = useState<DailyStat[]>([])
   const [topApps, setTopApps] = useState<DaySummary[]>([])
@@ -71,12 +58,6 @@ export default function StatsView(): JSX.Element {
     untagged: '#414868'
   }
   const allTags: (TagType | 'untagged')[] = ['work', 'neutral', 'distracting', 'untagged']
-
-  // Pie data from topApps
-  const pieData = topApps.map((a) => ({
-    name: a.appName,
-    value: a.totalTime
-  }))
 
   return (
     <div className="space-y-6">
@@ -141,11 +122,11 @@ export default function StatsView(): JSX.Element {
           {/* Top apps — horizontal bars */}
           <div className="rounded-lg border border-tt-border bg-tt-surface p-4">
             <h2 className="mb-4 text-sm font-medium text-tt-muted">Top applications</h2>
-            {pieData.length === 0 ? (
+            {topApps.length === 0 ? (
               <div className="py-8 text-center text-tt-muted">No data</div>
             ) : (
               <div className="space-y-2">
-                {topApps.slice(0, 10).map((app, idx) => {
+                {topApps.slice(0, 10).map((app) => {
                   const maxTime = topApps[0]?.totalTime ?? 1
                   const barWidth = maxTime > 0 ? (app.totalTime / maxTime) * 100 : 0
                   return (
@@ -161,7 +142,7 @@ export default function StatsView(): JSX.Element {
                           className="h-full rounded transition-all"
                           style={{
                             width: `${barWidth}%`,
-                            backgroundColor: PIE_COLORS[idx % PIE_COLORS.length]
+                            backgroundColor: '#7aa2f7'
                           }}
                           title={`${app.appName}\n${formatDuration(app.totalTime)} (${app.percentage.toFixed(0)}%)`}
                         />
