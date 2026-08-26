@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **N+1 queries in getDailyStats and getTagStats** — `getDailyStats(days)` ran 2 SQL queries per day (2N total: at `range=30` that was 60 queries per Stats page load). Replaced with 2 batch queries for the entire range + JS grouping by day. Registered `extractDomainFromUrl` as a SQLite JS function (like `extractTaskKey`) so `getTagStats` can now do tag aggregation in a single SQL query with LEFT JOINs instead of loading all events into JS and iterating row-by-row
 - **IPC input validation** — `settings:set` accepted any `key: string` from renderer (untrusted context), allowing arbitrary writes to the `settings` table. Fix: added whitelist of allowed setting keys (`autostart`, `excludedApps`, `idleThreshold`). Also added `targetType`/`tag` validation for tags handlers, `matchType`/`field` whitelists and pattern length limit (500 chars) for category rules — ReDoS protection for regex patterns
 
 ### Changed
