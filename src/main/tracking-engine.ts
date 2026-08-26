@@ -109,6 +109,18 @@ export class TrackingEngine extends EventEmitter {
     }
 
     log.info('[TrackingEngine] Starting polling every', this.pollIntervalMs, 'ms')
+
+    // Recover zombie events from previous crash (events with duration=0
+    // that were never closed because the app was killed/crashed).
+    try {
+      const recovered = this.db.recoverZombieEvents()
+      if (recovered > 0) {
+        log.info(`[TrackingEngine] Recovered ${recovered} zombie event(s) from previous session`)
+      }
+    } catch (err) {
+      log.error('[TrackingEngine] Zombie recovery failed:', err)
+    }
+
     this.intervalId = setInterval(() => this.poll(), this.pollIntervalMs)
   }
 
@@ -266,108 +278,115 @@ export class TrackingEngine extends EventEmitter {
   // ─── Core polling ────────────────────────────────────────────
 
   private async poll(): Promise<void> {
-    if (this.isPaused || this.isAfk) return
-
-    // Guard: skip activeWin() if Accessibility permission was revoked.
-    // Without this, each call spawns a native binary that re-triggers
-    // the macOS permission dialog.
-    if (!this.checkAccessibilityPermission()) return
-
-    let win: Awaited<ReturnType<typeof activeWin>>
     try {
-      win = await activeWin()
+      if (this.isPaused || this.isAfk) return
+
+      // Guard: skip activeWin() if Accessibility permission was revoked.
+      // Without this, each call spawns a native binary that re-triggers
+      // the macOS permission dialog.
+      if (!this.checkAccessibilityPermission()) return
+
+      let win: Awaited<ReturnType<typeof activeWin>>
+      try {
+        win = await activeWin()
+      } catch (err) {
+        log.error('[TrackingEngine] activeWin error:', err)
+        return
+      }
+
+      // Re-check after async — AFK/pause may have started during await activeWin().
+      // Without this, poll() creates real events that overlap with AFK events
+      // (race condition: isAfk checked at top, but activeWin is async).
+      if (this.isPaused || this.isAfk) return
+
+      if (!win) {
+        // Нет активного окна — возможно screen locked или нет дисплея
+        return
+      }
+
+      const appName = win.owner.name
+      const windowTitle = win.title
+      const appBundleId = 'bundleId' in win.owner ? (win.owner as { bundleId?: string }).bundleId : undefined
+      const url = 'url' in win ? (win as { url?: string }).url ?? null : null
+
+      // Google Meet background tracking — update meeting state before normal tracking
+      this.updateMeetingTracking(url, Date.now())
+
+      // Skip self-tracking — don't record events for the tracker's own window
+      if (SELF_APP_NAMES.has(appName)) {
+        if (!this.isSelfFocused) {
+          // Close current real event to record accurate duration
+          this.closeCurrentEvent()
+          this.isSelfFocused = true
+          this.emitActivityChanged()
+          log.info('[TrackingEngine] Self-focused — keeping last activity as current')
+        }
+        return
+      }
+
+      // Locked screen / screensaver — not real activity, don't record.
+      // This catches cases where lock-screen event hasn't fired yet (race),
+      // or where loginwindow appears briefly during sleep/wake transitions.
+      if (LOCKED_SCREEN_APPS.has(appName)) {
+        if (!this.isScreenLocked) {
+          this.closeCurrentEvent()
+          this.isScreenLocked = true
+          this.emitActivityChanged()
+          log.info('[TrackingEngine] Screen locked (loginwindow/screensaver) — not tracking')
+        }
+        return
+      }
+
+      // Check exclusion list — app user doesn't want tracked
+      if (this.excludedApps.has(appName)) {
+        if (this.currentEventId !== null) {
+          this.closeCurrentEvent()
+          this.emitActivityChanged()
+        }
+        return
+      }
+
+      // Coming back from self-focus → force new event even if same app
+      const wasSelfFocused = this.isSelfFocused
+      this.isSelfFocused = false
+
+      // Coming back from locked screen → force new event
+      const wasScreenLocked = this.isScreenLocked
+      this.isScreenLocked = false
+
+      // Private/incognito tab detection — skip tracking (privacy)
+      const isPrivate = isPrivateTab(appName, windowTitle)
+      if (isPrivate) {
+        if (!this.isPrivateBrowsing) {
+          this.closeCurrentEvent()
+          this.isPrivateBrowsing = true
+          this.emitActivityChanged()
+          log.info('[TrackingEngine] Private browsing — not tracking')
+        }
+        return
+      }
+
+      // Coming back from private → force new event
+      const wasPrivateBrowsing = this.isPrivateBrowsing
+      this.isPrivateBrowsing = false
+
+      const changed =
+        appName !== this.currentAppName ||
+        windowTitle !== this.currentWindowTitle ||
+        wasSelfFocused ||
+        wasScreenLocked ||
+        wasPrivateBrowsing
+
+      if (changed) {
+        this.closeCurrentEvent()
+        this.startNewEvent(appName, windowTitle, appBundleId, url)
+        this.emitActivityChanged()
+      }
     } catch (err) {
-      log.error('[TrackingEngine] activeWin error:', err)
-      return
-    }
-
-    // Re-check after async — AFK/pause may have started during await activeWin().
-    // Without this, poll() creates real events that overlap with AFK events
-    // (race condition: isAfk checked at top, but activeWin is async).
-    if (this.isPaused || this.isAfk) return
-
-    if (!win) {
-      // Нет активного окна — возможно screen locked или нет дисплея
-      return
-    }
-
-    const appName = win.owner.name
-    const windowTitle = win.title
-    const appBundleId = 'bundleId' in win.owner ? (win.owner as { bundleId?: string }).bundleId : undefined
-    const url = 'url' in win ? (win as { url?: string }).url ?? null : null
-
-    // Google Meet background tracking — update meeting state before normal tracking
-    this.updateMeetingTracking(url, Date.now())
-
-    // Skip self-tracking — don't record events for the tracker's own window
-    if (SELF_APP_NAMES.has(appName)) {
-      if (!this.isSelfFocused) {
-        // Close current real event to record accurate duration
-        this.closeCurrentEvent()
-        this.isSelfFocused = true
-        this.emitActivityChanged()
-        log.info('[TrackingEngine] Self-focused — keeping last activity as current')
-      }
-      return
-    }
-
-    // Locked screen / screensaver — not real activity, don't record.
-    // This catches cases where lock-screen event hasn't fired yet (race),
-    // or where loginwindow appears briefly during sleep/wake transitions.
-    if (LOCKED_SCREEN_APPS.has(appName)) {
-      if (!this.isScreenLocked) {
-        this.closeCurrentEvent()
-        this.isScreenLocked = true
-        this.emitActivityChanged()
-        log.info('[TrackingEngine] Screen locked (loginwindow/screensaver) — not tracking')
-      }
-      return
-    }
-
-    // Check exclusion list — app user doesn't want tracked
-    if (this.excludedApps.has(appName)) {
-      if (this.currentEventId !== null) {
-        this.closeCurrentEvent()
-        this.emitActivityChanged()
-      }
-      return
-    }
-
-    // Coming back from self-focus → force new event even if same app
-    const wasSelfFocused = this.isSelfFocused
-    this.isSelfFocused = false
-
-    // Coming back from locked screen → force new event
-    const wasScreenLocked = this.isScreenLocked
-    this.isScreenLocked = false
-
-    // Private/incognito tab detection — skip tracking (privacy)
-    const isPrivate = isPrivateTab(appName, windowTitle)
-    if (isPrivate) {
-      if (!this.isPrivateBrowsing) {
-        this.closeCurrentEvent()
-        this.isPrivateBrowsing = true
-        this.emitActivityChanged()
-        log.info('[TrackingEngine] Private browsing — not tracking')
-      }
-      return
-    }
-
-    // Coming back from private → force new event
-    const wasPrivateBrowsing = this.isPrivateBrowsing
-    this.isPrivateBrowsing = false
-
-    const changed =
-      appName !== this.currentAppName ||
-      windowTitle !== this.currentWindowTitle ||
-      wasSelfFocused ||
-      wasScreenLocked ||
-      wasPrivateBrowsing
-
-    if (changed) {
-      this.closeCurrentEvent()
-      this.startNewEvent(appName, windowTitle, appBundleId, url)
-      this.emitActivityChanged()
+      // Catch-all: any exception in poll() would otherwise kill the
+      // tracking silently (setInterval swallows thrown errors in async callbacks).
+      // We log and let the next tick continue normally.
+      log.error('[TrackingEngine] poll() unexpected error:', err)
     }
   }
 

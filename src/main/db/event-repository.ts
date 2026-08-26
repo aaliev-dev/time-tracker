@@ -71,6 +71,62 @@ export class EventRepository {
   }
 
   /**
+   * Восстановление после краша: находит и закрывает zombie-события.
+   *
+   * Zombie — это событие, которое было создано (insertEvent), но никогда
+   * не закрыто (closeEvent не вызван) из-за краха приложения или kill -9.
+   * У таких событий duration = 0 и ts_end ≈ ts_start.
+   *
+   * Recovery strategy:
+   * - Для самого свежего zombie: если краш был недавно (< 5 мин),
+   *   оцениваем duration = now - ts_start (пользователь, вероятно, ещё активен).
+   * - Для остальных / старых zombie: duration = 1 (минимальное ненулевое,
+   *   чтобы событие не пересобиралось при каждом следующем startup).
+   *
+   * Вызывается на startup перед началом poll loop.
+   * Возвращает количество восстановленных событий.
+   */
+  recoverZombieEvents(): number {
+    const now = Date.now()
+    const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString()
+
+    const zombies = this.db
+      .prepare(`
+        SELECT id, ts_start FROM events
+        WHERE duration = 0 AND is_afk = 0 AND ts_start > ?
+        ORDER BY ts_start DESC
+      `)
+      .all(sevenDaysAgo) as { id: number; ts_start: string }[]
+
+    if (zombies.length === 0) return 0
+
+    let recovered = 0
+    for (const zombie of zombies) {
+      const startTime = new Date(zombie.ts_start).getTime()
+      const elapsedSec = Math.round((now - startTime) / 1000)
+
+      let duration: number
+      let tsEnd: string
+
+      if (elapsedSec > 0 && elapsedSec < 300) {
+        // Recent crash — user was likely still active at time of crash
+        duration = elapsedSec
+        tsEnd = new Date().toISOString()
+      } else {
+        // Old zombie — data lost, mark with minimal duration so it
+        // won't be found again on next startup (avoids reprocessing)
+        duration = 1
+        tsEnd = zombie.ts_start
+      }
+
+      this.closeEvent(zombie.id, tsEnd, duration)
+      recovered++
+    }
+
+    return recovered
+  }
+
+  /**
    * Возвращает все события за конкретный день (локальный timezone).
    */
   getEventsByDay(date: string): ActivityEvent[] {

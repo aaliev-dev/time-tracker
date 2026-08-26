@@ -102,6 +102,7 @@ export class DatabaseManager {
     )
   }
   closeEvent(id: number, tsEnd: string, duration: number): void { this.events.closeEvent(id, tsEnd, duration) }
+  recoverZombieEvents(): number { return this.events.recoverZombieEvents() }
   getEventsByDay(date: string): ActivityEvent[] { return this.events.getEventsByDay(date) }
   getEventsByRange(fromDate: string, toDate: string): ActivityEvent[] { return this.events.getEventsByRange(fromDate, toDate) }
   getDaySummary(date: string): DaySummary[] { return this.events.getDaySummary(date) }
