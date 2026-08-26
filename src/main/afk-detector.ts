@@ -93,24 +93,28 @@ export class AFKDetector extends EventEmitter {
   // ─── Idle polling ────────────────────────────────────────────
 
   private checkIdle(): void {
-    // Exempt apps (e.g., Google Meet) — never go AFK during a call
-    if (this.exemptCallback?.()) {
-      if (this.isAfk) this.endAfk()
-      return
-    }
-
-    const idleSec = powerMonitor.getSystemIdleTime()
-
-    if (idleSec >= this.idleThresholdSec) {
-      // Idle превысил порог → AFK
-      if (!this.isAfk) {
-        this.startAfk()
+    try {
+      // Exempt apps (e.g., Google Meet) — never go AFK during a call
+      if (this.exemptCallback?.()) {
+        if (this.isAfk) this.endAfk()
+        return
       }
-    } else {
-      // Пользователь активен
-      if (this.isAfk) {
-        this.endAfk()
+
+      const idleSec = powerMonitor.getSystemIdleTime()
+
+      if (idleSec >= this.idleThresholdSec) {
+        // Idle превысил порог → AFK
+        if (!this.isAfk) {
+          this.startAfk()
+        }
+      } else {
+        // Пользователь активен
+        if (this.isAfk) {
+          this.endAfk()
+        }
       }
+    } catch (err) {
+      log.error('[AFKDetector] checkIdle error:', err)
     }
   }
 

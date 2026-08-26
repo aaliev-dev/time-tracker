@@ -136,7 +136,11 @@ export class TrackingEngine extends EventEmitter {
 
   pause(): void {
     this.isPaused = true
-    this.closeCurrentEvent()
+    try {
+      this.closeCurrentEvent()
+    } catch (err) {
+      log.error('[TrackingEngine] closeCurrentEvent failed during pause:', err)
+    }
     this.emitActivityChanged()
     log.info('[TrackingEngine] Paused')
   }
@@ -168,7 +172,11 @@ export class TrackingEngine extends EventEmitter {
   onAfkStart(): void {
     if (this.isAfk) return
     this.isAfk = true
-    this.closeCurrentEvent()
+    try {
+      this.closeCurrentEvent()
+    } catch (err) {
+      log.error('[TrackingEngine] closeCurrentEvent failed during AFK start:', err)
+    }
     this.emitActivityChanged()
     log.info('[TrackingEngine] AFK started')
   }
@@ -182,27 +190,31 @@ export class TrackingEngine extends EventEmitter {
     if (!this.isAfk) return
     this.isAfk = false
 
-    // Находим categoryId для AFK (категория создаётся миграцией 003)
-    const afkCategory = this.db.getCategoryByName('AFK')
-    const afkCategoryId = afkCategory?.id ?? null
+    try {
+      // Находим categoryId для AFK (категория создаётся миграцией 003)
+      const afkCategory = this.db.getCategoryByName('AFK')
+      const afkCategoryId = afkCategory?.id ?? null
 
-    // Записываем AFK событие
-    const now = new Date()
-    const tsEnd = now.toISOString()
-    const tsStart = new Date(now.getTime() - afkDuration * 1000).toISOString()
+      // Записываем AFK событие
+      const now = new Date()
+      const tsEnd = now.toISOString()
+      const tsStart = new Date(now.getTime() - afkDuration * 1000).toISOString()
 
-    this.db.insertEvent({
-      tsStart,
-      tsEnd,
-      duration: afkDuration,
-      appName: 'AFK',
-      appBundleId: undefined,
-      windowTitle: 'Away from keyboard',
-      url: null,
-      categoryId: afkCategoryId,
-      isAfk: true,
-      isPrivate: false
-    })
+      this.db.insertEvent({
+        tsStart,
+        tsEnd,
+        duration: afkDuration,
+        appName: 'AFK',
+        appBundleId: undefined,
+        windowTitle: 'Away from keyboard',
+        url: null,
+        categoryId: afkCategoryId,
+        isAfk: true,
+        isPrivate: false
+      })
+    } catch (err) {
+      log.error('[TrackingEngine] Failed to record AFK event:', err)
+    }
 
     this.emitActivityChanged()
     log.info(`[TrackingEngine] AFK ended (was away ${afkDuration}s)`)
