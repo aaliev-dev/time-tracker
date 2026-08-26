@@ -6,7 +6,7 @@ import type { DatabaseManager } from './database'
 import type { TrackingEngine } from './tracking-engine'
 import type { AFKDetector } from './afk-detector'
 import { getAppIcon } from './app-icons'
-import { IPC_CHANNELS, type Category, type CategoryRule, type TagTargetType, type TagType } from './types'
+import { IPC_CHANNELS, type Category, type CategoryRule, type TagTargetType, type TagType } from '../shared/types'
 
 /**
  * Регистрирует все IPC handlers.

@@ -20,7 +20,7 @@ Privacy-first: all data local, no network requests.
 ## Code conventions
 - `kebab-case.ts` for modules, `PascalCase.tsx` for components
 - `camelCase` vars, `PascalCase` types
-- Shared types in `src/main/types.ts`
+- Shared types in `src/shared/types.ts`
 - DB migrations in `src/main/migrations/NNN_name.sql`
 
 ## Git

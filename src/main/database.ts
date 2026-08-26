@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
 import { log } from './safe-log'
-import type { ActivityEvent, Category, CategoryRule, DaySummary, DailyStat, HeatmapCell, DetailedDaySummary, AppTag, TagTargetType, TagType, TagStat, WorkAppStat, TaskStat } from './types'
+import type { ActivityEvent, Category, CategoryRule, DaySummary, DailyStat, HeatmapCell, DetailedDaySummary, AppTag, TagTargetType, TagType, TagStat, WorkAppStat, TaskStat } from '../shared/types'
 
 /**
  * Database — обёртка над better-sqlite3.

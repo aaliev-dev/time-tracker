@@ -2,7 +2,7 @@ import activeWin from 'active-win'
 import { EventEmitter } from 'events'
 import { app, systemPreferences } from 'electron'
 import type { DatabaseManager } from './database'
-import type { CurrentActivity } from './types'
+import type { CurrentActivity } from '../shared/types'
 import { log } from './safe-log'
 
 /** Имена процесса трекера (dev='Electron', prod='CarpeDiem') — чтобы не трекать себя */

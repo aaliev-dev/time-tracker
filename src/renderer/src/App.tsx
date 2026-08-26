@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, Component, type ReactNode } from 'react'
 import { Clock, Activity, BarChart3, Settings as SettingsIcon, ChevronRight, List, MoreVertical, Briefcase } from 'lucide-react'
-import type { CurrentActivity, DetailedDaySummary, WindowEntry, AppTag, TagType, TagTargetType } from '../../main/types'
+import type { CurrentActivity, DetailedDaySummary, WindowEntry, AppTag, TagType, TagTargetType } from '../../shared/types'
 import { formatDuration, formatLocalDate } from './lib/format'
 import StatsView from './pages/StatsView'
 import SettingsView from './pages/SettingsView'

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Power, Clock, Download, ShieldOff, X, Tag, FileJson } from 'lucide-react'
-import type { Category, CategoryRule } from '../../../main/types'
+import type { Category, CategoryRule } from '../../../shared/types'
 
 export default function SettingsView(): JSX.Element {
   const [autostart, setAutostart] = useState(false)

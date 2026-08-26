@@ -28,7 +28,7 @@
 - **strict: true** — обязательно
 - Везде типизированные интерфейсы для IPC payloads
 - Никакого `any` без веской причины и комментария
-- Shared типы — в `src/main/types.ts`, импортируются и в main, и в renderer
+- Shared типы — в `src/shared/types.ts`, импортируются и в main, и в renderer
 
 ### React
 - Функциональные компоненты, hooks

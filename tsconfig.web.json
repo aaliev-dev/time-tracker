@@ -20,7 +20,7 @@
   },
   "include": [
     "src/renderer/src/**/*",
-    "src/preload/index.d.ts",
-    "src/main/types.ts"
+    "src/shared/types.ts",
+    "src/preload/index.d.ts"
   ]
 }

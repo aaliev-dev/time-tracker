@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import type { ActivityEvent } from '../../../main/types'
+import type { ActivityEvent } from '../../../shared/types'
 import { formatDuration, formatLocalDate, formatTime } from '../lib/format'
 
 /**
