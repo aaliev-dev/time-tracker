@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import { readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
+import { log } from './safe-log'
 import type { ActivityEvent, Category, CategoryRule, DaySummary, DailyStat, HeatmapCell, DetailedDaySummary, AppTag, TagTargetType, TagType, TagStat, WorkAppStat, TaskStat } from './types'
 
 /**
@@ -23,15 +24,12 @@ export class DatabaseManager {
     this.db.pragma('foreign_keys = ON')
 
     // Регистрируем JS-функцию для извлечения Jira-ключей в SQL-запросах
-    // (SQLite не имеет встроенного regex). Используется при бэкфилле.
+    // (SQLite не имеет встроенного regex). Используется в миграции 006.
     this.db.function('extractTaskKey', (text: string | null): string | null => {
       return extractTaskKey(text)
     })
 
     this.runMigrations()
-
-    // Бэкфилл: проставляем task_key для существующих событий
-    this.backfillTaskKeys()
   }
 
   private getDefaultDbPath(): string {
@@ -70,54 +68,76 @@ export class DatabaseManager {
       throw new Error('Migrations directory not found. Checked: ' + candidates.join(', '))
     }
 
-    this.applyMigrationsFromDir(migrationsDir, files)
-  }
-
-  private applyMigrationsFromDir(dir: string, files: string[]): void {
-    for (const file of files) {
-      const sql = readFileSync(join(dir, file), 'utf-8')
-      this.db.exec(sql)
-    }
+    this.initMigrationsTable()
+    this.applyMigrations(migrationsDir, files)
   }
 
   /**
-   * Добавляет колонку task_key (если её нет) и заполняет Jira-ключами
-   * из window_title и url. Вызывается после миграций.
-   *
-   * ALTER TABLE не поддерживает IF NOT EXISTS, поэтому делаем через
-   * PRAGMA table_info — проверяем наличие колонки перед ALTER.
+   * Создаёт таблицу schema_migrations для отслеживания применённых миграций.
+   * Без этого миграции 001–006 выполнялись при КАЖДОМ запуске (благодаря
+   * IF NOT EXISTS это было safe для schema, но data-migrations типа 005
+   * с DELETE/UPDATE — рискованно при повторном выполнении).
    */
-  private backfillTaskKeys(): void {
-    try {
-      // Проверяем, существует ли колонка task_key
-      const cols = this.db.prepare("PRAGMA table_info(events)").all() as { name: string }[]
-      const hasTaskKey = cols.some((c) => c.name === 'task_key')
+  private initMigrationsTable(): void {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        version    TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `)
+  }
 
-      if (!hasTaskKey) {
-        // Добавляем колонку (выполняется один раз)
-        this.db.exec('ALTER TABLE events ADD COLUMN task_key TEXT')
+  /**
+   * Применяет только новые (ещё не выполненные) миграции.
+   *
+   * Для существующих БД (обновлённых со старого кода без schema_migrations):
+   * если таблица events уже существует — все миграции из директории
+   * помечаются как уже применённые (старый runner выполнял их с IF NOT EXISTS
+   * при каждом запуске). После этого новые миграции отслеживаются штатно.
+   *
+   * Каждая миграция выполняется в транзакции вместе с записью в schema_migrations
+   * — атомарность: провал → миграция не помечена как применённая.
+   */
+  private applyMigrations(dir: string, files: string[]): void {
+    const appliedRows = this.db
+      .prepare('SELECT version FROM schema_migrations')
+      .all() as { version: string }[]
+
+    // First run with new system: detect existing DB (events table exists)
+    if (appliedRows.length === 0) {
+      const hasEventsTable = this.db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='events'")
+        .get()
+
+      if (hasEventsTable) {
+        // Existing DB upgraded from old code — mark all current migrations as applied
+        const tx = this.db.transaction(() => {
+          for (const file of files) {
+            this.db.prepare('INSERT INTO schema_migrations (version) VALUES (?)').run(file)
+          }
+        })
+        tx()
+        log.info('[Database] Existing DB detected — marked', files.length, 'migrations as already applied')
+        return
       }
+    }
 
-      // Создаём индекс (безопасно — IF NOT EXISTS)
-      this.db.exec('CREATE INDEX IF NOT EXISTS idx_events_task_key ON events(task_key) WHERE task_key IS NOT NULL')
+    const applied = new Set(appliedRows.map((r) => r.version))
 
-      // Бэкфилл: window_title → task_key
-      this.db.exec(`
-        UPDATE events SET task_key = extractTaskKey(window_title)
-        WHERE task_key IS NULL AND extractTaskKey(window_title) IS NOT NULL
-      `)
-      // Бэкфилл: url → task_key (если window_title не дал ключа)
-      this.db.exec(`
-        UPDATE events SET task_key = extractTaskKey(url)
-        WHERE task_key IS NULL AND extractTaskKey(url) IS NOT NULL
-      `)
-      // Очистка ложных срабатываний (UTF-8 и т.п.)
-      this.db.exec(`
-        UPDATE events SET task_key = NULL
-        WHERE task_key IN ('UTF-8', 'UTF-16', 'ASCII-0', 'HTTP-1', 'HTTPS-1')
-      `)
-    } catch {
-      // Колонка может не существовать до применения миграции — игнорируем
+    for (const file of files) {
+      if (applied.has(file)) continue
+
+      log.info('[Database] Applying migration:', file)
+      const sql = readFileSync(join(dir, file), 'utf-8')
+
+      // Atomic: migrate + record in single transaction
+      const tx = this.db.transaction(() => {
+        this.db.exec(sql)
+        this.db.prepare('INSERT INTO schema_migrations (version) VALUES (?)').run(file)
+      })
+      tx()
+
+      log.info('[Database] Migration applied:', file)
     }
   }
 
