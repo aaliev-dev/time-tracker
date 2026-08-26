@@ -8,6 +8,11 @@ import { log } from './safe-log'
 /** Имена процесса трекера (dev='Electron', prod='CarpeDiem') — чтобы не трекать себя */
 const SELF_APP_NAMES = new Set(['Electron', app.getName()])
 
+/** Приложения, которые появляются когда экран заблокирован / скринсейвер.
+ * active-win на macOS возвращает loginwindow когда экран залочен,
+ * ScreenSaverEngine — когда активен скринсейвер. Это не реальная активность. */
+const LOCKED_SCREEN_APPS = new Set(['loginwindow', 'ScreenSaverEngine'])
+
 /** Проверяет, что URL — это активный Google Meet звонок (не главная страница) */
 function isMeetCallUrl(url: string | null): boolean {
   if (!url) return false
@@ -49,6 +54,7 @@ export class TrackingEngine extends EventEmitter {
   private isPaused: boolean = false
   private isSelfFocused: boolean = false
   private isPrivateBrowsing: boolean = false
+  private isScreenLocked: boolean = false
   private isAfk: boolean = false
   private excludedApps: Set<string> = new Set()
   private hasAccessibilityPermission: boolean = false
@@ -305,6 +311,19 @@ export class TrackingEngine extends EventEmitter {
       return
     }
 
+    // Locked screen / screensaver — not real activity, don't record.
+    // This catches cases where lock-screen event hasn't fired yet (race),
+    // or where loginwindow appears briefly during sleep/wake transitions.
+    if (LOCKED_SCREEN_APPS.has(appName)) {
+      if (!this.isScreenLocked) {
+        this.closeCurrentEvent()
+        this.isScreenLocked = true
+        this.emitActivityChanged()
+        log.info('[TrackingEngine] Screen locked (loginwindow/screensaver) — not tracking')
+      }
+      return
+    }
+
     // Check exclusion list — app user doesn't want tracked
     if (this.excludedApps.has(appName)) {
       if (this.currentEventId !== null) {
@@ -317,6 +336,10 @@ export class TrackingEngine extends EventEmitter {
     // Coming back from self-focus → force new event even if same app
     const wasSelfFocused = this.isSelfFocused
     this.isSelfFocused = false
+
+    // Coming back from locked screen → force new event
+    const wasScreenLocked = this.isScreenLocked
+    this.isScreenLocked = false
 
     // Private/incognito tab detection — skip tracking (privacy)
     const isPrivate = isPrivateTab(appName, windowTitle)
@@ -338,6 +361,7 @@ export class TrackingEngine extends EventEmitter {
       appName !== this.currentAppName ||
       windowTitle !== this.currentWindowTitle ||
       wasSelfFocused ||
+      wasScreenLocked ||
       wasPrivateBrowsing
 
     if (changed) {
@@ -396,6 +420,16 @@ export class TrackingEngine extends EventEmitter {
       return {
         appName: 'Private browsing',
         windowTitle: 'Incognito / Private tab',
+        url: null,
+        tsStart: this.currentTsStart ?? new Date().toISOString(),
+        isAfk: this.isAfk,
+        isPaused: this.isPaused
+      }
+    }
+    if (this.isScreenLocked) {
+      return {
+        appName: 'Screen locked',
+        windowTitle: 'Locked',
         url: null,
         tsStart: this.currentTsStart ?? new Date().toISOString(),
         isAfk: this.isAfk,

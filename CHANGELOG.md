@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **loginwindow tracked as real activity** — when the macOS screen is locked, `active-win` returns `loginwindow` (or `ScreenSaverEngine`) as the active window. The tracker was recording these as real app events with `is_afk=0`. Now `loginwindow` and `ScreenSaverEngine` are detected and treated as "screen locked" — the current event is closed, no new event is recorded, and the UI shows «Screen locked» until the user returns. The AFK detector's `lock-screen` event then records the AFK period normally
 ### Added
 - **Google Meet background tracking** — when a Google Meet call is detected (URL `meet.google.com/{code}`), the tracker keeps recording Meet time even when the user switches to other apps. A parallel "Google Meet" background event runs alongside foreground events. Meeting ends after 10-minute timeout without seeing the Meet tab. AFK is suppressed during active meetings (no keyboard/mouse input is normal on calls)
 - **Jira links in Tasks section** — task keys in Work tab «По задачам» are now clickable links opening `jira.int.agrd.dev/browse/{key}` in the default browser. «Остальное» has no link
