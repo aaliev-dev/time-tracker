@@ -29,6 +29,12 @@ export class DatabaseManager {
       return extractTaskKey(text)
     })
 
+    // Регистрируем JS-функцию для извлечения домена из URL в SQL-запросах.
+    // Используется в getTagStats / getDailyStats для JOIN с domain-тегами.
+    this.db.function('extractDomainFromUrl', (url: string | null): string | null => {
+      return extractDomainFromUrl(url ?? '')
+    })
+
     this.runMigrations()
   }
 
@@ -253,12 +259,39 @@ export class DatabaseManager {
 
   /**
    * Возвращает статистику за N последних дней.
+   *
+   * Оптимизация: вместо 2 запросов на каждый день (2N total) делает
+   * 2 запроса за весь диапазон и группирует по дню в JS.
+   * При range=30 было 60 запросов → стало 2.
    */
   getDailyStats(days: number): DailyStat[] {
-    const result: DailyStat[] = []
     const today = new Date()
+    const fromDate = new Date(today)
+    fromDate.setDate(fromDate.getDate() - (days - 1))
+    const toStr = formatLocalDate(today)
+    const { start, end } = localDayBounds(toStr)
 
-    // Pre-load all tags for fast lookup (same logic as getTagStats)
+    // 1. Per-day totals (one query for all days)
+    const totalRows = this.db
+      .prepare(`
+        SELECT date(ts_start) AS day, COALESCE(SUM(duration), 0) AS totalActive
+        FROM events
+        WHERE ts_start >= ? AND ts_start <= ? AND is_afk = 0
+        GROUP BY date(ts_start)
+      `)
+      .all(start, end) as { day: string; totalActive: number }[]
+    const totalByDay = new Map(totalRows.map((r) => [r.day, r.totalActive]))
+
+    // 2. Per-day × per-tag breakdown (one query for all events, group in JS)
+    const eventRows = this.db
+      .prepare(`
+        SELECT app_name, url, duration, ts_start
+        FROM events
+        WHERE ts_start >= ? AND ts_start <= ? AND is_afk = 0
+      `)
+      .all(start, end) as { app_name: string; url: string | null; duration: number; ts_start: string }[]
+
+    // Pre-load all tags for fast lookup
     const tags = this.getAllAppTags()
     const appTagMap = new Map<string, TagType>()
     const domainTagMap = new Map<string, TagType>()
@@ -267,59 +300,48 @@ export class DatabaseManager {
       else domainTagMap.set(t.targetKey, t.tag)
     }
 
+    // Group events by day + tag
+    const tagByDay = new Map<string, Record<string, number>>()
+    for (const e of eventRows) {
+      const day = e.ts_start.substring(0, 10)
+      let dayMap = tagByDay.get(day)
+      if (!dayMap) {
+        dayMap = { work: 0, neutral: 0, distracting: 0, untagged: 0 }
+        tagByDay.set(day, dayMap)
+      }
+
+      let tag: TagType | 'untagged' = 'untagged'
+      const appTag = appTagMap.get(e.app_name)
+      if (appTag) {
+        tag = appTag
+      } else if (e.url) {
+        const domain = extractDomainFromUrl(e.url)
+        if (domain) {
+          const domainTag = domainTagMap.get(domain)
+          if (domainTag) tag = domainTag
+        }
+      }
+      dayMap[tag] = (dayMap[tag] ?? 0) + e.duration
+    }
+
+    // Build result for each day in range
+    const result: DailyStat[] = []
     for (let i = days - 1; i >= 0; i--) {
       const d = new Date(today)
       d.setDate(d.getDate() - i)
       const dateStr = formatLocalDate(d)
-      const { start, end } = localDayBounds(dateStr)
-
-      const row = this.db
-        .prepare(`
-          SELECT COALESCE(SUM(duration), 0) AS totalActive
-          FROM events
-          WHERE ts_start >= ? AND ts_start <= ? AND is_afk = 0
-        `)
-        .get(start, end) as { totalActive: number }
-
-      // Per-tag breakdown (not per-category)
-      const eventRows = this.db
-        .prepare(`
-          SELECT app_name, url, duration
-          FROM events
-          WHERE ts_start >= ? AND ts_start <= ? AND is_afk = 0
-        `)
-        .all(start, end) as { app_name: string; url: string | null; duration: number }[]
-
-      const tagTotals: Record<string, number> = {
-        work: 0, neutral: 0, distracting: 0, untagged: 0
-      }
-      for (const e of eventRows) {
-        let tag: TagType | 'untagged' = 'untagged'
-        const appTag = appTagMap.get(e.app_name)
-        if (appTag) {
-          tag = appTag
-        } else if (e.url) {
-          const domain = extractDomainFromUrl(e.url)
-          if (domain) {
-            const domainTag = domainTagMap.get(domain)
-            if (domainTag) tag = domainTag
-          }
-        }
-        tagTotals[tag] = (tagTotals[tag] ?? 0) + e.duration
-      }
-
+      const dayMap = tagByDay.get(dateStr) ?? { work: 0, neutral: 0, distracting: 0, untagged: 0 }
       result.push({
         date: dateStr,
-        totalActive: row.totalActive ?? 0,
+        totalActive: totalByDay.get(dateStr) ?? 0,
         byTag: [
-          { tag: 'work', seconds: tagTotals.work },
-          { tag: 'neutral', seconds: tagTotals.neutral },
-          { tag: 'distracting', seconds: tagTotals.distracting },
-          { tag: 'untagged', seconds: tagTotals.untagged }
+          { tag: 'work', seconds: dayMap.work },
+          { tag: 'neutral', seconds: dayMap.neutral },
+          { tag: 'distracting', seconds: dayMap.distracting },
+          { tag: 'untagged', seconds: dayMap.untagged }
         ]
       })
     }
-
     return result
   }
 
@@ -416,57 +438,49 @@ export class DatabaseManager {
   /**
    * Возвращает распределение времени по тегам (work/neutral/distracting/untagged)
    * за период. Соединяет events с app_tags по appName (для type='app')
-   * и по домену URL (для type='domain').
+   * и по домену URL (для type='domain') через SQL JOIN.
+   *
+   * Оптимизация: вместо загрузки всех events и тегирования в JS,
+   * использует один SQL-запрос с LEFT JOIN к app_tags +
+   * зарегистрированной функцией extractDomainFromUrl().
    */
   getTagStats(fromDate: string, toDate: string): TagStat[] {
     const { start } = localDayBounds(fromDate)
     const { end: endBound } = localDayBounds(toDate)
 
-    // Получаем все события (не-AFK) за период
     const rows = this.db
       .prepare(`
-        SELECT app_name, url, duration
-        FROM events
-        WHERE ts_start >= ? AND ts_start <= ? AND is_afk = 0
+        SELECT
+          COALESCE(
+            at.tag,
+            dt.tag,
+            'untagged'
+          ) AS tag,
+          SUM(e.duration) AS seconds
+        FROM events e
+        LEFT JOIN app_tags at
+          ON at.target_type = 'app' AND at.target_key = e.app_name
+        LEFT JOIN app_tags dt
+          ON dt.target_type = 'domain'
+          AND dt.target_key = extractDomainFromUrl(e.url)
+        WHERE e.ts_start >= ? AND e.ts_start <= ? AND e.is_afk = 0
+        GROUP BY tag
       `)
-      .all(start, endBound) as { app_name: string; url: string | null; duration: number }[]
+      .all(start, endBound) as { tag: string; seconds: number }[]
 
-    // Получаем все теги
-    const tags = this.getAllAppTags()
-
-    // Строим lookup-мапы
-    const appTagMap = new Map<string, TagType>()
-    const domainTagMap = new Map<string, TagType>()
-    for (const t of tags) {
-      if (t.targetType === 'app') appTagMap.set(t.targetKey, t.tag)
-      else domainTagMap.set(t.targetKey, t.tag)
-    }
-
-    // Агрегируем
     const result: Record<string, number> = {
       work: 0,
       neutral: 0,
       distracting: 0,
       untagged: 0
     }
-
     for (const row of rows) {
-      let tag: TagType | 'untagged' = 'untagged'
-
-      // Сначала проверяем тег приложения
-      const appTag = appTagMap.get(row.app_name)
-      if (appTag) {
-        tag = appTag
-      } else if (row.url) {
-        // Если нет тега приложения — проверяем тег домена
-        const domain = extractDomainFromUrl(row.url)
-        if (domain) {
-          const domainTag = domainTagMap.get(domain)
-          if (domainTag) tag = domainTag
-        }
+      if (row.tag in result) {
+        result[row.tag] = row.seconds
+      } else {
+        // Unknown tag from DB — add to untagged
+        result.untagged += row.seconds
       }
-
-      result[tag] = (result[tag] ?? 0) + row.duration
     }
 
     return [
