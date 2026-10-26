@@ -208,7 +208,7 @@ export class StatsRepository {
             at.tag,
             dt.tag,
             'untagged'
-          ) AS tag,
+          ) AS tag_name,
           SUM(e.duration) AS seconds
         FROM events e
         LEFT JOIN app_tags at
@@ -217,9 +217,9 @@ export class StatsRepository {
           ON dt.target_type = 'domain'
           AND dt.target_key = extractDomainFromUrl(e.url)
         WHERE e.ts_start >= ? AND e.ts_start <= ? AND e.is_afk = 0
-        GROUP BY tag
+        GROUP BY tag_name
       `)
-      .all(start, endBound) as { tag: string; seconds: number }[]
+      .all(start, endBound) as { tag_name: string; seconds: number }[]
 
     const result: Record<string, number> = {
       work: 0,
@@ -228,8 +228,8 @@ export class StatsRepository {
       untagged: 0
     }
     for (const row of rows) {
-      if (row.tag in result) {
-        result[row.tag] = row.seconds
+      if (row.tag_name in result) {
+        result[row.tag_name] = row.seconds
       } else {
         result.untagged += row.seconds
       }

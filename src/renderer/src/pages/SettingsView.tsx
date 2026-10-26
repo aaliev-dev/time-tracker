@@ -1,14 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Power, Clock, Download, ShieldOff, X, Tag, FileJson } from 'lucide-react'
-import type { Category, CategoryRule } from '../../../shared/types'
+import { Power, Clock, Download, ShieldOff, X, FileJson } from 'lucide-react'
 
 export default function SettingsView(): JSX.Element {
   const [autostart, setAutostart] = useState(false)
   const [idleThreshold, setIdleThreshold] = useState(60)
   const [excludedApps, setExcludedApps] = useState<string[]>([])
   const [newApp, setNewApp] = useState('')
-  const [categories, setCategories] = useState<Category[]>([])
-  const [rules, setRules] = useState<CategoryRule[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -16,15 +13,11 @@ export default function SettingsView(): JSX.Element {
     Promise.all([
       window.api.settings.get('autostart'),
       window.api.settings.get('idleThreshold'),
-      window.api.settings.get('excludedApps'),
-      window.api.categories.getAll(),
-      window.api.rules.getAll()
-    ]).then(([auto, idle, excluded, cats, rls]) => {
+      window.api.settings.get('excludedApps')
+    ]).then(([auto, idle, excluded]) => {
       setAutostart(auto === true || auto === 'true')
       setIdleThreshold(typeof idle === 'number' ? idle : parseInt(String(idle ?? '60')) || 60)
       setExcludedApps(Array.isArray(excluded) ? excluded : [])
-      setCategories(cats as Category[])
-      setRules(rls as CategoryRule[])
       setLoading(false)
     })
   }, [])
@@ -70,25 +63,25 @@ export default function SettingsView(): JSX.Element {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h2 className="text-lg font-semibold">Settings</h2>
+      <h2 className="text-lg font-semibold">Настройки</h2>
 
       {loading ? (
-        <div className="text-tt-muted">Loading...</div>
+        <div className="text-tt-muted">Загрузка...</div>
       ) : (
         <>
           {/* General */}
           <div className="space-y-4 rounded-lg border border-tt-border bg-tt-surface p-5">
             <h3 className="flex items-center gap-2 text-sm font-medium">
               <Power size={16} className="text-tt-accent" />
-              General
+              Основные
             </h3>
 
             {/* Autostart */}
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm">Launch at login</div>
+                <div className="text-sm">Запускать при входе</div>
                 <div className="text-xs text-tt-muted">
-                  Start tracking automatically when you log in
+                  Автоматически начинать отслеживание при входе в систему
                 </div>
               </div>
               <button
@@ -108,9 +101,9 @@ export default function SettingsView(): JSX.Element {
             {/* Idle threshold */}
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm">Idle threshold</div>
+                <div className="text-sm">Порог бездействия</div>
                 <div className="text-xs text-tt-muted">
-                  Seconds before marking as AFK
+                  Секунд до отметки AFK
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -125,7 +118,7 @@ export default function SettingsView(): JSX.Element {
                   className="w-32"
                 />
                 <span className="w-16 text-sm text-tt-muted">
-                  {Math.floor(idleThreshold / 60)}m {idleThreshold % 60}s
+                  {Math.floor(idleThreshold / 60)}м {idleThreshold % 60}с
                 </span>
               </div>
             </div>
@@ -135,29 +128,29 @@ export default function SettingsView(): JSX.Element {
           <div className="space-y-4 rounded-lg border border-tt-border bg-tt-surface p-5">
             <h3 className="flex items-center gap-2 text-sm font-medium">
               <Download size={16} className="text-tt-accent" />
-              Data
+              Данные
             </h3>
 
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm">Export to CSV</div>
+                <div className="text-sm">Экспорт в CSV</div>
                 <div className="text-xs text-tt-muted">
-                  Export last 7 days to Downloads folder
+                  Экспорт последних 7 дней в папку Downloads
                 </div>
               </div>
               <button
                 onClick={exportCsv}
                 className="rounded-lg border border-tt-border px-4 py-2 text-sm hover:bg-tt-bg"
               >
-                Export CSV
+                Экспорт CSV
               </button>
             </div>
 
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm">Export to JSON</div>
+                <div className="text-sm">Экспорт в JSON</div>
                 <div className="text-xs text-tt-muted">
-                  Export last 7 days with full event data
+                  Экспорт последних 7 дней с полными данными
                 </div>
               </div>
               <button
@@ -165,7 +158,7 @@ export default function SettingsView(): JSX.Element {
                 className="flex items-center gap-2 rounded-lg border border-tt-border px-4 py-2 text-sm hover:bg-tt-bg"
               >
                 <FileJson size={14} />
-                Export JSON
+                Экспорт JSON
               </button>
             </div>
           </div>
@@ -174,10 +167,10 @@ export default function SettingsView(): JSX.Element {
           <div className="space-y-4 rounded-lg border border-tt-border bg-tt-surface p-5">
             <h3 className="flex items-center gap-2 text-sm font-medium">
               <ShieldOff size={16} className="text-tt-accent" />
-              Exclusion list
+              Список исключений
             </h3>
             <div className="text-xs text-tt-muted">
-              Apps in this list will not be tracked at all. Enter the exact app name as it appears in the activity list.
+              Приложения из этого списка не отслеживаются. Введите точное имя приложения, как оно отображается в списке активности.
             </div>
 
             {/* Add app input */}
@@ -189,7 +182,7 @@ export default function SettingsView(): JSX.Element {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') addExcludedApp()
                 }}
-                placeholder="App name (e.g., Slack, Maps)"
+                placeholder="Имя приложения (напр., Slack, Maps)"
                 className="flex-1 rounded-lg border border-tt-border bg-tt-bg px-3 py-2 text-sm text-tt-text placeholder-tt-muted focus:border-tt-accent focus:outline-none"
               />
               <button
@@ -197,7 +190,7 @@ export default function SettingsView(): JSX.Element {
                 disabled={!newApp.trim()}
                 className="rounded-lg border border-tt-border px-4 py-2 text-sm hover:bg-tt-bg disabled:opacity-40"
               >
-                Add
+                Добавить
               </button>
             </div>
 
@@ -220,96 +213,19 @@ export default function SettingsView(): JSX.Element {
                 ))}
               </div>
             ) : (
-              <div className="text-sm text-tt-muted">No excluded apps.</div>
+              <div className="text-sm text-tt-muted">Нет исключённых приложений.</div>
             )}
           </div>
 
-          {/* Categories */}
-          <div className="space-y-4 rounded-lg border border-tt-border bg-tt-surface p-5">
-            <h3 className="flex items-center gap-2 text-sm font-medium">
-              <Tag size={16} className="text-tt-accent" />
-              Categories
-            </h3>
-            <div className="text-xs text-tt-muted">
-              Categories are assigned automatically via rules. Each category has a productivity weight (-2 to +2).
-            </div>
-
-            {/* Category list */}
-            <div className="space-y-2">
-              {categories.map((cat) => {
-                const ruleCount = rules.filter((r) => r.categoryId === cat.id).length
-                return (
-                  <div
-                    key={cat.id}
-                    className="flex items-center gap-3 rounded-lg border border-tt-border bg-tt-bg px-3 py-2"
-                  >
-                    <span
-                      className="h-4 w-4 rounded-full"
-                      style={{ backgroundColor: cat.color }}
-                    />
-                    <span className="flex-1 text-sm">{cat.name}</span>
-                    <span className="text-xs text-tt-muted">
-                      {ruleCount} {ruleCount === 1 ? 'rule' : 'rules'}
-                    </span>
-                    <span
-                      className="rounded px-2 py-0.5 text-xs"
-                      style={{
-                        backgroundColor:
-                          cat.productivity > 0 ? 'rgba(158, 206, 106, 0.15)'
-                          : cat.productivity < 0 ? 'rgba(247, 118, 142, 0.15)'
-                          : 'rgba(154, 165, 206, 0.15)',
-                        color:
-                          cat.productivity > 0 ? '#9ece6a'
-                          : cat.productivity < 0 ? '#f7768e'
-                          : '#9aa5ce'
-                      }}
-                    >
-                      {cat.productivity > 0 ? '+' : ''}{cat.productivity}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* Rules list */}
-            {rules.length > 0 && (
-              <div className="space-y-1.5">
-                <div className="text-xs font-medium text-tt-muted">Auto-categorization rules</div>
-                {rules.map((rule) => {
-                  const cat = categories.find((c) => c.id === rule.categoryId)
-                  return (
-                    <div
-                      key={rule.id}
-                      className="flex items-center gap-2 px-3 py-1.5 text-xs"
-                    >
-                      <span className="text-tt-muted">{rule.field}</span>
-                      <span className="text-tt-muted">·</span>
-                      <span className="rounded bg-tt-bg px-1.5 py-0.5 text-tt-muted">
-                        {rule.matchType}
-                      </span>
-                      <span className="truncate text-tt-text">"{rule.value}"</span>
-                      <span className="text-tt-muted">→</span>
-                      <span className="flex items-center gap-1.5">
-                        {cat && (
-                          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
-                        )}
-                        <span>{cat?.name ?? 'Unknown'}</span>
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
           <div className="space-y-3 rounded-lg border border-tt-border bg-tt-surface p-5">
             <h3 className="flex items-center gap-2 text-sm font-medium">
               <Clock size={16} className="text-tt-accent" />
-              About
+              О приложении
             </h3>
             <div className="text-sm text-tt-muted">
-              Time Tracker v0.1.0 — local, private time tracking for macOS.
+              CarpeDiem v0.1.0 — локальный, приватный трекер времени для macOS.
               <br />
-              All data is stored locally in SQLite. No network requests.
+              Все данные хранятся локально в SQLite. Без сетевых запросов.
             </div>
           </div>
         </>

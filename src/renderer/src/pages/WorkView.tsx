@@ -100,7 +100,7 @@ export default function WorkView(): JSX.Element {
       </div>
 
       {loading ? (
-        <div className="py-20 text-center text-tt-muted">Loading work statistics...</div>
+        <div className="py-20 text-center text-tt-muted">Загрузка статистики работы...</div>
       ) : (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
           {/* ─── По приложениям ─── */}
@@ -109,7 +109,7 @@ export default function WorkView(): JSX.Element {
               <h2 className="text-sm font-medium text-tt-muted">По приложениям</h2>
               {totalWorkTime > 0 && (
                 <span className="text-xs text-tt-muted">
-                  Total: {formatDuration(totalWorkTime)}
+                  Всего: {formatDuration(totalWorkTime)}
                 </span>
               )}
             </div>
@@ -118,7 +118,7 @@ export default function WorkView(): JSX.Element {
               <div className="py-8 text-center text-sm text-tt-muted">
                 Нет приложений и сайтов, отмеченных как «работа».
                 <br />
-                Откройте Timeline и отметьте приложения тегом «Работа» (меню ⋮).
+                Откройте «Сегодня» и отметьте приложения тегом «Работа» (меню ⋮).
               </div>
             ) : (
               <HBarChart data={workBarData} total={totalWorkTime} />
@@ -131,7 +131,7 @@ export default function WorkView(): JSX.Element {
               <h2 className="text-sm font-medium text-tt-muted">По задачам</h2>
               {totalWorkTime > 0 && (
                 <span className="text-xs text-tt-muted">
-                  Total: {formatDuration(totalWorkTime)}
+                  Всего: {formatDuration(totalWorkTime)}
                 </span>
               )}
             </div>
@@ -183,7 +183,7 @@ function HBarChart({
   renderLabel?: (item: BarItem) => string
 }): JSX.Element {
   if (total === 0 || data.length === 0) {
-    return <div className="py-8 text-center text-sm text-tt-muted">No data</div>
+    return <div className="py-8 text-center text-sm text-tt-muted">Нет данных</div>
   }
 
   const maxVal = data[0]?.value ?? 1

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, Component, type ReactNode } from 'react'
-import { Clock, Activity, BarChart3, Settings as SettingsIcon, ChevronRight, List, MoreVertical, Briefcase } from 'lucide-react'
+import { Clock, Activity, BarChart3, Settings as SettingsIcon, ChevronRight, MoreVertical, Briefcase } from 'lucide-react'
 import type { CurrentActivity, DetailedDaySummary, WindowEntry, AppTag, TagType, TagTargetType } from '../../shared/types'
 import { formatDuration, formatLocalDate } from './lib/format'
 import StatsView from './pages/StatsView'
@@ -20,7 +20,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: string |
     if (this.state.error) {
       return (
         <div className="flex h-screen flex-col items-center justify-center gap-4 bg-tt-bg p-8 text-center text-tt-text">
-          <h1 className="text-xl font-semibold text-tt-red">Something went wrong</h1>
+          <h1 className="text-xl font-semibold text-tt-red">Что-то пошло не так</h1>
           <p className="max-w-md text-sm text-tt-muted">{this.state.error}</p>
           <p className="text-xs text-tt-muted">
             window.api is {typeof window !== 'undefined' && 'api' in window ? 'available' : 'NOT available'}
@@ -38,16 +38,16 @@ function hasApi(): boolean {
   return typeof window !== 'undefined' && !!window.api
 }
 
-type View = 'timeline' | 'log' | 'work' | 'stats' | 'settings'
+type View = 'timeline' | 'work' | 'stats' | 'settings'
 
 export default function App(): JSX.Element {
   if (!hasApi()) {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4 bg-tt-bg p-8 text-center text-tt-text">
         <Clock size={48} className="text-tt-accent" />
-        <h1 className="text-xl font-semibold">Time Tracker</h1>
+        <h1 className="text-xl font-semibold">CarpeDiem</h1>
         <p className="max-w-md text-sm text-tt-muted">
-          Preload script not loaded. If running outside Electron, this is expected.
+          Preload script не загружен. Если запущено вне Electron, это ожидаемо.
         </p>
       </div>
     )
@@ -99,16 +99,9 @@ function AppInner(): JSX.Element {
         <button
           className={`no-drag rounded-lg p-3 transition-colors ${view === 'timeline' ? 'bg-tt-accent/30 text-tt-accent' : 'text-tt-muted hover:text-tt-text'}`}
           onClick={() => setView('timeline')}
-          title="Timeline"
+          title="Сегодня"
         >
           <Clock size={22} />
-        </button>
-        <button
-          className={`no-drag rounded-lg p-3 transition-colors ${view === 'log' ? 'bg-tt-accent/30 text-tt-accent' : 'text-tt-muted hover:text-tt-text'}`}
-          onClick={() => setView('log')}
-          title="Daily Log"
-        >
-          <List size={22} />
         </button>
         <button
           className={`no-drag rounded-lg p-3 transition-colors ${view === 'work' ? 'bg-tt-accent/30 text-tt-accent' : 'text-tt-muted hover:text-tt-text'}`}
@@ -120,14 +113,14 @@ function AppInner(): JSX.Element {
         <button
           className={`no-drag rounded-lg p-3 transition-colors ${view === 'stats' ? 'bg-tt-accent/30 text-tt-accent' : 'text-tt-muted hover:text-tt-text'}`}
           onClick={() => setView('stats')}
-          title="Statistics"
+          title="Статистика"
         >
           <BarChart3 size={22} />
         </button>
         <button
           className={`no-drag rounded-lg p-3 transition-colors ${view === 'settings' ? 'bg-tt-accent/30 text-tt-accent' : 'text-tt-muted hover:text-tt-text'}`}
           onClick={() => setView('settings')}
-          title="Settings"
+          title="Настройки"
         >
           <SettingsIcon size={22} />
         </button>
@@ -137,7 +130,7 @@ function AppInner(): JSX.Element {
       <main className="flex-1 overflow-auto">
         <header className="drag-region flex items-center justify-between border-b border-tt-border px-6 py-4">
           <h1 className="text-lg font-semibold">
-            {view === 'timeline' ? 'Timeline' : view === 'log' ? 'Daily Log' : view === 'work' ? 'Работа' : view === 'stats' ? 'Statistics' : 'Settings'}
+            {view === 'timeline' ? 'Сегодня' : view === 'work' ? 'Работа' : view === 'stats' ? 'Статистика' : 'Настройки'}
           </h1>
           {/* Current activity indicator */}
           <div className="no-drag flex items-center gap-2 text-sm">
@@ -153,29 +146,30 @@ function AppInner(): JSX.Element {
             />
             <span className="max-w-md truncate text-tt-muted">
               {currentActivity?.isPaused
-                ? '⏸ Paused'
+                ? '⏸ Пауза'
                 : currentActivity?.isAfk
                   ? '😴 AFK'
                   : currentActivity?.windowTitle
                     ? `${currentActivity.appName} — ${currentActivity.windowTitle}`
-                    : `Now: ${currentActivity?.appName ?? '—'}`}
+                    : `${currentActivity?.appName ?? '—'}`}
             </span>
           </div>
         </header>
 
         <div className="p-6">
           {view === 'timeline' && (
-            <DaySummaryView
-              summary={summary}
-              selectedDate={selectedDate}
-              onDateChange={setSelectedDate}
-            />
-          )}
-          {view === 'log' && (
-            <LogView
-              selectedDate={selectedDate}
-              onDateChange={setSelectedDate}
-            />
+            <>
+              <DaySummaryView
+                summary={summary}
+                selectedDate={selectedDate}
+                onDateChange={setSelectedDate}
+              />
+              <LogView
+                selectedDate={selectedDate}
+                onDateChange={setSelectedDate}
+                embedded
+              />
+            </>
           )}
           {view === 'work' && <WorkView />}
           {view === 'stats' && <StatsView />}
@@ -225,35 +219,35 @@ function DaySummaryView({
           onClick={() => shiftDate(-1)}
           className="rounded-lg border border-tt-border px-3 py-1.5 text-sm hover:bg-tt-surface"
         >
-          ← Previous
+          ← Назад
         </button>
         <div className="flex items-center gap-3">
           <span className="text-lg font-medium">{selectedDate}</span>
-          {isToday && <span className="rounded bg-tt-accent/25 px-2 py-0.5 text-xs font-medium text-tt-accent">Today</span>}
+          {isToday && <span className="rounded bg-tt-accent/25 px-2 py-0.5 text-xs font-medium text-tt-accent">Сегодня</span>}
         </div>
         <button
           onClick={() => shiftDate(1)}
           disabled={isToday}
           className="rounded-lg border border-tt-border px-3 py-1.5 text-sm hover:bg-tt-surface disabled:opacity-30"
         >
-          Next →
+          Вперёд →
         </button>
       </div>
 
       {/* Total active time */}
       <div className="rounded-lg border border-tt-border bg-tt-surface p-4">
-        <div className="text-sm text-tt-muted">Total active time</div>
+        <div className="text-sm text-tt-muted">Всего активно</div>
         <div className="mt-1 text-3xl font-semibold text-tt-text">{formatDuration(totalActive)}</div>
       </div>
 
       {/* App list */}
       <div>
         <h2 className="mb-3 text-sm font-medium text-tt-muted">
-          Applications ({summary.length})
+          Приложения ({summary.length})
         </h2>
         {summary.length === 0 ? (
           <div className="rounded-lg border border-tt-border bg-tt-surface p-8 text-center text-tt-muted">
-            No activity recorded yet for this day.
+            Нет данных за этот день.
           </div>
         ) : (
           <div className="space-y-2">
@@ -275,7 +269,7 @@ function DaySummaryView({
       {afkTime > 0 && (
         <div>
           <h2 className="mb-3 text-sm font-medium text-tt-muted">
-            Away from keyboard
+            Бездействие
           </h2>
           <div className="flex items-center gap-4 rounded-lg border border-tt-border bg-tt-surface/50 p-4">
             <div
@@ -285,16 +279,16 @@ function DaySummaryView({
               😴
             </div>
             <div className="flex-1">
-              <div className="text-sm text-tt-muted">Total AFK time</div>
+              <div className="text-sm text-tt-muted">Всего AFK</div>
               <div className="text-xl font-semibold text-tt-muted">
                 {formatDuration(afkTime)}
               </div>
             </div>
             <div className="text-right text-xs text-tt-muted">
               {afkTime > 60
-                ? `${Math.round(afkTime / 60)} min`
-                : `${Math.round(afkTime)} sec`}
-              {' inactive'}
+                ? `${Math.round(afkTime / 60)} мин`
+                : `${Math.round(afkTime)} сек`}
+              {' бездействие'}
             </div>
           </div>
         </div>

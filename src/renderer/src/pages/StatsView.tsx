@@ -79,16 +79,16 @@ export default function StatsView(): JSX.Element {
       </div>
 
       {loading ? (
-        <div className="py-20 text-center text-tt-muted">Loading statistics...</div>
+        <div className="py-20 text-center text-tt-muted">Загрузка статистики...</div>
       ) : dailyStats.length === 0 ? (
         <div className="rounded-lg border border-tt-border bg-tt-surface p-8 text-center text-tt-muted">
-          No data yet. Start using the app to see statistics.
+          Нет данных. Начните использовать приложение для просмотра статистики.
         </div>
       ) : (
         <>
           {/* Daily active time bar chart (stacked by tag) */}
           <div className="rounded-lg border border-tt-border bg-tt-surface p-4">
-            <h2 className="mb-4 text-sm font-medium text-tt-muted">Daily active time</h2>
+            <h2 className="mb-4 text-sm font-medium text-tt-muted">Активность по дням</h2>
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={chartData}>
                 <XAxis dataKey="date" stroke="#9aa5ce" fontSize={12} />
@@ -121,9 +121,9 @@ export default function StatsView(): JSX.Element {
 
           {/* Top apps — horizontal bars */}
           <div className="rounded-lg border border-tt-border bg-tt-surface p-4">
-            <h2 className="mb-4 text-sm font-medium text-tt-muted">Top applications</h2>
+            <h2 className="mb-4 text-sm font-medium text-tt-muted">Топ приложений</h2>
             {topApps.length === 0 ? (
-              <div className="py-8 text-center text-tt-muted">No data</div>
+              <div className="py-8 text-center text-tt-muted">Нет данных</div>
             ) : (
               <div className="space-y-2">
                 {topApps.slice(0, 10).map((app) => {
@@ -166,20 +166,20 @@ export default function StatsView(): JSX.Element {
           {/* Summary stats */}
           <div className="grid grid-cols-3 gap-4">
             <StatCard
-              label="Total tracked"
+              label="Всего отслежено"
               value={formatDuration(
                 dailyStats.reduce((s, d) => s + d.totalActive, 0)
               )}
             />
             <StatCard
-              label="Daily average"
+              label="В среднем в день"
               value={formatDuration(
                 dailyStats.reduce((s, d) => s + d.totalActive, 0) /
                   Math.max(dailyStats.length, 1)
               )}
             />
             <StatCard
-              label="Most active day"
+              label="Самый активный день"
               value={
                 dailyStats.length > 0
                   ? dailyStats.reduce((max, d) =>
@@ -209,7 +209,7 @@ function StatCard({ label, value }: { label: string; value: string }): JSX.Eleme
 
 // ─── Heatmap ───────────────────────────────────────────────────
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const DAYS = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
 
 /** Heatmap color: 0 → transparent, max → blue */
 function heatColor(seconds: number, max: number): string {
@@ -245,7 +245,7 @@ function HeatmapSection({ heatmap }: { heatmap: HeatmapCell[] }): JSX.Element {
   return (
     <div className="rounded-lg border border-tt-border bg-tt-surface p-4">
       <h2 className="mb-3 text-sm font-medium text-tt-muted">
-        Activity heatmap (day × hour)
+        Тепловая карта (день × час)
       </h2>
       <div className="overflow-x-auto">
         <div className="min-w-[600px]">
@@ -287,7 +287,7 @@ function HeatmapSection({ heatmap }: { heatmap: HeatmapCell[] }): JSX.Element {
           ))}
           {/* Legend */}
           <div className="mt-3 flex items-center gap-2 pl-10 text-xs text-tt-muted">
-            <span>Less</span>
+            <span>Меньше</span>
             {[0, 0.25, 0.5, 0.75, 1].map((i) => (
               <div
                 key={i}
@@ -295,7 +295,7 @@ function HeatmapSection({ heatmap }: { heatmap: HeatmapCell[] }): JSX.Element {
                 style={{ backgroundColor: heatColor(i * max, max) }}
               />
             ))}
-            <span>More</span>
+            <span>Больше</span>
           </div>
         </div>
       </div>
@@ -328,7 +328,7 @@ function TagDistributionSection({ tagStats }: { tagStats: TagStat[] }): JSX.Elem
 
   return (
     <div className="rounded-lg border border-tt-border bg-tt-surface p-4">
-      <h2 className="mb-4 text-sm font-medium text-tt-muted">Time by tag</h2>
+      <h2 className="mb-4 text-sm font-medium text-tt-muted">Время по тегам</h2>
       <div className="space-y-2">
         {activeTags.map((t) => {
           const barWidth = maxSeconds > 0 ? (t.seconds / maxSeconds) * 100 : 0

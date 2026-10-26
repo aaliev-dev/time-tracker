@@ -12,9 +12,10 @@ import { formatDuration, formatLocalDate, formatTime } from '../lib/format'
  *
  * Данные: window.api.activities.getDay(date) → ActivityEvent[]
  */
-export default function LogView({ selectedDate, onDateChange }: {
+export default function LogView({ selectedDate, onDateChange, embedded }: {
   selectedDate: string
   onDateChange: (date: string) => void
+  embedded?: boolean
 }): JSX.Element {
   const [events, setEvents] = useState<ActivityEvent[]>([])
   const [loading, setLoading] = useState(true)
@@ -81,6 +82,8 @@ export default function LogView({ selectedDate, onDateChange }: {
 
   return (
     <div className="space-y-6">
+      {!embedded && (
+      <>
       {/* Date navigation */}
       <div className="flex items-center justify-between">
         <button
@@ -91,7 +94,7 @@ export default function LogView({ selectedDate, onDateChange }: {
         </button>
         <div className="flex items-center gap-3">
           <span className="text-lg font-medium">{selectedDate}</span>
-          {isToday && <span className="rounded bg-tt-accent/25 px-2 py-0.5 text-xs font-medium text-tt-accent">Today</span>}
+          {isToday && <span className="rounded bg-tt-accent/25 px-2 py-0.5 text-xs font-medium text-tt-accent">Сегодня</span>}
         </div>
         <button
           onClick={() => shiftDate(1)}
@@ -106,20 +109,22 @@ export default function LogView({ selectedDate, onDateChange }: {
       <div className="rounded-lg border border-tt-border bg-tt-surface p-4">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-sm text-tt-muted">Total active time</div>
+            <div className="text-sm text-tt-muted">Всего активно</div>
             <div className="mt-1 text-2xl font-semibold">{formatDuration(totalActive)}</div>
           </div>
           <div className="text-right">
-            <div className="text-sm text-tt-muted">Events</div>
+            <div className="text-sm text-tt-muted">События</div>
             <div className="mt-1 text-2xl font-semibold">{activeEvents.length}</div>
           </div>
         </div>
       </div>
+      </>
+      )}
 
       {/* Visual timeline bar */}
       {!loading && activeEvents.length > 0 && (
         <div className="rounded-lg border border-tt-border bg-tt-surface p-4">
-          <h2 className="mb-3 text-sm font-medium text-tt-muted">Timeline</h2>
+          <h2 className="mb-3 text-sm font-medium text-tt-muted">Хронология дня</h2>
 
           {/* Timeline bar + tooltip overlay */}
           <div className="relative">
@@ -212,15 +217,15 @@ export default function LogView({ selectedDate, onDateChange }: {
       {/* Event list */}
       <div>
         <h2 className="mb-3 text-sm font-medium text-tt-muted">
-          Events ({events.length})
+          События ({events.length})
         </h2>
         {loading ? (
           <div className="rounded-lg border border-tt-border bg-tt-surface p-8 text-center text-tt-muted">
-            Loading...
+            Загрузка...
           </div>
         ) : events.length === 0 ? (
           <div className="rounded-lg border border-tt-border bg-tt-surface p-8 text-center text-tt-muted">
-            No events recorded for this day.
+            Нет данных за этот день.
           </div>
         ) : (
           <div className="space-y-1">
